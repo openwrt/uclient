@@ -371,12 +371,6 @@ uclient_http_set_header(struct uclient *cl, const char *name, const char *value)
 	return 0;
 }
 
-#define ustream_printf(us, ...) do { \
-	fprintf(stderr, "send: " __VA_ARGS__); \
-	ustream_printf(us, __VA_ARGS__); \
-} while (0)
-
-
 static void
 uclient_http_send_headers(struct uclient_http *uh)
 {
