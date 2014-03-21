@@ -45,6 +45,7 @@ struct uclient_http {
 
 	bool ssl;
 	bool eof;
+	bool connection_close;
 	enum request_type req_type;
 	enum http_state state;
 
@@ -81,6 +82,20 @@ static int uclient_do_connect(struct uclient_http *uh, const char *port)
 	return 0;
 }
 
+static void uclient_http_disconnect(struct uclient *cl)
+{
+	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+
+	if (!uh->us)
+		return;
+
+	if (uh->ssl)
+		ustream_free(&uh->ussl.stream);
+	ustream_free(&uh->ufd.stream);
+	close(uh->ufd.fd.fd);
+	uh->us = NULL;
+}
+
 static void uclient_notify_eof(struct uclient_http *uh)
 {
 	struct ustream *us = uh->us;
@@ -94,17 +109,22 @@ static void uclient_notify_eof(struct uclient_http *uh)
 	}
 
 	uclient_backend_set_eof(&uh->uc);
+
+	if (uh->connection_close)
+		uclient_http_disconnect(&uh->uc);
 }
 
 static void uclient_http_process_headers(struct uclient_http *uh)
 {
 	enum {
 		HTTP_HDR_TRANSFER_ENCODING,
+		HTTP_HDR_CONNECTION,
 		__HTTP_HDR_MAX,
 	};
 	static const struct blobmsg_policy hdr_policy[__HTTP_HDR_MAX] = {
 #define hdr(_name) { .name = _name, .type = BLOBMSG_TYPE_STRING }
 		[HTTP_HDR_TRANSFER_ENCODING] = hdr("transfer-encoding"),
+		[HTTP_HDR_CONNECTION] = hdr("connection"),
 #undef hdr
 	};
 	struct blob_attr *tb[__HTTP_HDR_MAX];
@@ -115,6 +135,10 @@ static void uclient_http_process_headers(struct uclient_http *uh)
 	cur = tb[HTTP_HDR_TRANSFER_ENCODING];
 	if (cur && strstr(blobmsg_data(cur), "chunked"))
 		uh->read_chunked = 0;
+
+	cur = tb[HTTP_HDR_CONNECTION];
+	if (cur && strstr(blobmsg_data(cur), "close"))
+		uh->connection_close = true;
 }
 
 static void uclient_parse_http_line(struct uclient_http *uh, char *data)
@@ -277,31 +301,26 @@ static int uclient_setup_https(struct uclient_http *uh)
 	return 0;
 }
 
-static void uclient_http_disconnect(struct uclient_http *uh)
+static void uclient_http_reset_state(struct uclient_http *uh)
 {
 	uclient_backend_reset_state(&uh->uc);
 	uh->read_chunked = -1;
 	uh->eof = false;
-
-	if (!uh->us)
-		return;
-
-	if (uh->ssl)
-		ustream_free(&uh->ussl.stream);
-	ustream_free(&uh->ufd.stream);
-	close(uh->ufd.fd.fd);
-	uh->us = NULL;
+	uh->connection_close = false;
+	uh->state = HTTP_STATE_INIT;
 }
 
 static int uclient_http_connect(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 
-	uclient_http_disconnect(uh);
+	uclient_http_reset_state(uh);
 	blob_buf_init(&uh->meta, 0);
 
+	if (uh->us)
+		return 0;
+
 	uh->ssl = cl->url->prefix == PREFIX_HTTPS;
-	uh->state = HTTP_STATE_INIT;
 
 	if (uh->ssl)
 		return uclient_setup_https(uh);
@@ -323,7 +342,7 @@ static void uclient_http_free(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 
-	uclient_http_disconnect(uh);
+	uclient_http_disconnect(cl);
 	blob_buf_free(&uh->headers);
 	blob_buf_free(&uh->meta);
 	free(uh);
@@ -389,8 +408,7 @@ uclient_http_send_headers(struct uclient_http *uh)
 
 	ustream_printf(uh->us,
 		"%s /%s HTTP/1.1\r\n"
-		"Host: %s\r\n"
-		"Connection: close\r\n",
+		"Host: %s\r\n",
 		request_types[uh->req_type],
 		url->location, url->host);
 
@@ -453,7 +471,7 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 	int read_len = 0;
 	char *data, *data_end;
 
-	if (uh->state < HTTP_STATE_RECV_DATA)
+	if (uh->state < HTTP_STATE_RECV_DATA || !uh->us)
 		return 0;
 
 	data = ustream_get_read_buf(uh->us, &read_len);
@@ -514,6 +532,7 @@ const struct uclient_backend uclient_backend_http __hidden = {
 	.alloc = uclient_http_alloc,
 	.free = uclient_http_free,
 	.connect = uclient_http_connect,
+	.update_url = uclient_http_disconnect,
 
 	.read = uclient_http_read,
 	.write = uclient_http_send_data,

@@ -106,6 +106,7 @@ struct uclient *uclient_new(const char *url_str, const struct uclient_cb *cb)
 int uclient_connect_url(struct uclient *cl, const char *url_str)
 {
 	struct uclient_url *url = cl->url;
+	const struct uclient_backend *backend = cl->backend;
 
 	if (url_str) {
 		url = uclient_get_url(url_str);
@@ -117,9 +118,12 @@ int uclient_connect_url(struct uclient *cl, const char *url_str)
 
 		free(cl->url);
 		cl->url = url;
+
+		if (backend->update_url)
+			backend->update_url(cl);
 	}
 
-	return cl->backend->connect(cl);
+	return backend->connect(cl);
 }
 
 void uclient_free(struct uclient *cl)

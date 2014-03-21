@@ -8,6 +8,7 @@ struct uclient_backend {
 
 	struct uclient *(*alloc)(void);
 	void (*free)(struct uclient *cl);
+	void (*update_url)(struct uclient *cl);
 
 	int (*connect)(struct uclient *cl);
 	int (*request)(struct uclient *cl);
