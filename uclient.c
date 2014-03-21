@@ -45,7 +45,7 @@ static struct uclient_url *uclient_get_url(const char *url_str)
 		*next = 0;
 		url->location = next + 1;
 	} else {
-		url->location = "/";
+		url->location = "";
 	}
 
 	url->host = url_buf;
