@@ -50,6 +50,7 @@ struct uclient_http {
 	enum http_state state;
 
 	long read_chunked;
+	long content_length;
 
 	struct blob_buf headers;
 	struct blob_buf meta;
@@ -119,12 +120,14 @@ static void uclient_http_process_headers(struct uclient_http *uh)
 	enum {
 		HTTP_HDR_TRANSFER_ENCODING,
 		HTTP_HDR_CONNECTION,
+		HTTP_HDR_CONTENT_LENGTH,
 		__HTTP_HDR_MAX,
 	};
 	static const struct blobmsg_policy hdr_policy[__HTTP_HDR_MAX] = {
 #define hdr(_name) { .name = _name, .type = BLOBMSG_TYPE_STRING }
 		[HTTP_HDR_TRANSFER_ENCODING] = hdr("transfer-encoding"),
 		[HTTP_HDR_CONNECTION] = hdr("connection"),
+		[HTTP_HDR_CONTENT_LENGTH] = hdr("content-length"),
 #undef hdr
 	};
 	struct blob_attr *tb[__HTTP_HDR_MAX];
@@ -139,6 +142,10 @@ static void uclient_http_process_headers(struct uclient_http *uh)
 	cur = tb[HTTP_HDR_CONNECTION];
 	if (cur && strstr(blobmsg_data(cur), "close"))
 		uh->connection_close = true;
+
+	cur = tb[HTTP_HDR_CONTENT_LENGTH];
+	if (cur)
+		uh->content_length = strtoul(blobmsg_data(cur), NULL, 10);
 }
 
 static void uclient_parse_http_line(struct uclient_http *uh, char *data)
@@ -305,6 +312,7 @@ static void uclient_http_reset_state(struct uclient_http *uh)
 {
 	uclient_backend_reset_state(&uh->uc);
 	uh->read_chunked = -1;
+	uh->content_length = -1;
 	uh->eof = false;
 	uh->connection_close = false;
 	uh->state = HTTP_STATE_INIT;
@@ -511,6 +519,13 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 			len = uh->read_chunked;
 
 		uh->read_chunked -= len;
+	} else if (uh->content_length >= 0) {
+		if (len > uh->content_length)
+			len = uh->content_length;
+
+		uh->content_length -= len;
+		if (!uh->content_length)
+			uh->eof = true;
 	}
 
 	if (len > 0) {
