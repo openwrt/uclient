@@ -44,8 +44,11 @@ struct uclient_http {
 	struct ustream_ssl ussl;
 
 	bool ssl;
+	bool eof;
 	enum request_type req_type;
 	enum http_state state;
+
+	long read_chunked;
 
 	struct blob_buf headers;
 	struct blob_buf meta;
@@ -82,13 +85,36 @@ static void uclient_notify_eof(struct uclient_http *uh)
 {
 	struct ustream *us = uh->us;
 
-	if (!us->eof && !us->write_error)
-		return;
+	if (!uh->eof) {
+		if (!us->eof && !us->write_error)
+			return;
 
-	if (ustream_pending_data(us, false))
-		return;
+		if (ustream_pending_data(us, false))
+			return;
+	}
 
 	uclient_backend_set_eof(&uh->uc);
+}
+
+static void uclient_http_process_headers(struct uclient_http *uh)
+{
+	enum {
+		HTTP_HDR_TRANSFER_ENCODING,
+		__HTTP_HDR_MAX,
+	};
+	static const struct blobmsg_policy hdr_policy[__HTTP_HDR_MAX] = {
+#define hdr(_name) { .name = _name, .type = BLOBMSG_TYPE_STRING }
+		[HTTP_HDR_TRANSFER_ENCODING] = hdr("transfer-encoding"),
+#undef hdr
+	};
+	struct blob_attr *tb[__HTTP_HDR_MAX];
+	struct blob_attr *cur;
+
+	blobmsg_parse(hdr_policy, __HTTP_HDR_MAX, tb, blob_data(uh->meta.head), blob_len(uh->meta.head));
+
+	cur = tb[HTTP_HDR_TRANSFER_ENCODING];
+	if (cur && strstr(blobmsg_data(cur), "chunked"))
+		uh->read_chunked = 0;
 }
 
 static void uclient_parse_http_line(struct uclient_http *uh, char *data)
@@ -104,6 +130,7 @@ static void uclient_parse_http_line(struct uclient_http *uh, char *data)
 	if (!*data) {
 		uh->state = HTTP_STATE_RECV_DATA;
 		uh->uc.meta = uh->meta.head;
+		uclient_http_process_headers(uh);
 		if (uh->uc.cb->header_done)
 			uh->uc.cb->header_done(&uh->uc);
 		return;
@@ -247,6 +274,8 @@ static int uclient_setup_https(struct uclient_http *uh)
 static void uclient_http_disconnect(struct uclient_http *uh)
 {
 	uclient_backend_reset_state(&uh->uc);
+	uh->read_chunked = -1;
+	uh->eof = false;
 
 	if (!uh->us)
 		return;
@@ -421,21 +450,59 @@ static int
 uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
-	int data_len;
-	char *data;
+	int read_len = 0;
+	char *data, *data_end;
 
 	if (uh->state < HTTP_STATE_RECV_DATA)
 		return 0;
 
-	data = ustream_get_read_buf(uh->us, &data_len);
-	if (!data || !data_len)
+	data = ustream_get_read_buf(uh->us, &read_len);
+	if (!data || !read_len)
 		return 0;
 
-	if (len > data_len)
-		len = data_len;
+	data_end = data + read_len;
+	read_len = 0;
 
-	memcpy(buf, data, len);
-	ustream_consume(uh->us, len);
+	if (uh->read_chunked == 0) {
+		char *sep;
+
+		if (data[0] == '\r' && data[1] == '\n') {
+			data += 2;
+			read_len += 2;
+		}
+
+		sep = strstr(data, "\r\n");
+		if (!sep)
+			return 0;
+
+		*sep = 0;
+		uh->read_chunked = strtoul(data, NULL, 16);
+
+		read_len += sep + 2 - data;
+		data = sep + 2;
+
+		if (!uh->read_chunked)
+			uh->eof = true;
+	}
+
+	if (len > data_end - data)
+		len = data_end - data;
+
+	if (uh->read_chunked >= 0) {
+		if (len > uh->read_chunked)
+			len = uh->read_chunked;
+
+		uh->read_chunked -= len;
+	}
+
+	if (len > 0) {
+		read_len += len;
+		memcpy(buf, data, len);
+	}
+
+	if (read_len > 0)
+		ustream_consume(uh->us, read_len);
+
 	uclient_notify_eof(uh);
 
 	return len;
