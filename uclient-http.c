@@ -133,6 +133,12 @@ static void uclient_parse_http_line(struct uclient_http *uh, char *data)
 		uclient_http_process_headers(uh);
 		if (uh->uc.cb->header_done)
 			uh->uc.cb->header_done(&uh->uc);
+
+		if (uh->req_type == REQ_HEAD) {
+			uh->eof = true;
+			uclient_notify_eof(uh);
+		}
+
 		return;
 	}
 
