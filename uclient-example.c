@@ -1,4 +1,6 @@
 #include <libubox/blobmsg.h>
+#include <unistd.h>
+#include <stdio.h>
 
 #include "uclient.h"
 
@@ -7,12 +9,12 @@ static void example_header_done(struct uclient *cl)
 	struct blob_attr *cur;
 	int rem;
 
-	fprintf(stderr, "Headers: \n");
+	printf("Headers: \n");
 	blobmsg_for_each_attr(cur, cl->meta, rem) {
-		fprintf(stderr, "%s=%s\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
+		printf("%s=%s\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
 	}
 
-	fprintf(stderr, "Contents:\n");
+	printf("Contents:\n");
 }
 
 static void example_read_data(struct uclient *cl)
@@ -25,7 +27,7 @@ static void example_read_data(struct uclient *cl)
 		if (!len)
 			return;
 
-		fwrite(buf, len, 1, stderr);
+		write(STDOUT_FILENO, buf, len);
 	}
 }
 
