@@ -14,7 +14,6 @@ struct uclient_backend {
 
 	int (*read)(struct uclient *cl, char *buf, unsigned int len);
 	int (*write)(struct uclient *cl, char *buf, unsigned int len);
-	int (*set_write_len)(struct uclient *cl, unsigned int len);
 };
 
 struct uclient_url {

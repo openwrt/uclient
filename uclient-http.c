@@ -47,8 +47,6 @@ struct uclient_http {
 	enum request_type req_type;
 	enum http_state state;
 
-	unsigned int send_len;
-
 	struct blob_buf headers;
 	struct blob_buf meta;
 };
@@ -361,8 +359,9 @@ uclient_http_send_headers(struct uclient_http *uh)
 		return;
 
 	ustream_printf(uh->us,
-		"%s /%s HTTP/1.0\r\n"
-		"Host: %s\r\n",
+		"%s /%s HTTP/1.1\r\n"
+		"Host: %s\r\n"
+		"Connection: close\r\n",
 		request_types[uh->req_type],
 		url->location, url->host);
 
@@ -381,28 +380,10 @@ uclient_http_send_headers(struct uclient_http *uh)
 		ustream_printf(uh->us, "Authorization: Basic %s\r\n", auth_buf);
 	}
 
-	if (uh->send_len > 0)
-		ustream_printf(uh->us, "Content-Length: %d", uh->send_len);
+	if (uh->req_type == REQ_POST)
+		ustream_printf(uh->us, "Transfer-Encoding: chunked\r\n");
 
 	ustream_printf(uh->us, "\r\n");
-}
-
-static int
-uclient_http_set_write_len(struct uclient *cl, unsigned int len)
-{
-	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
-
-	if (uh->state >= HTTP_STATE_HEADERS_SENT)
-		return -1;
-
-	if (uh->req_type == REQ_GET || uh->req_type == REQ_HEAD) {
-		fprintf(stderr, "Sending data is not supported for %s requests\n",
-			request_types[uh->req_type]);
-		return -1;
-	}
-
-	uh->send_len = len;
-	return 0;
 }
 
 static int
@@ -415,12 +396,9 @@ uclient_http_send_data(struct uclient *cl, char *buf, unsigned int len)
 
 	uclient_http_send_headers(uh);
 
-	if (len > uh->send_len) {
-		fprintf(stderr, "%s: ignoring %d extra data bytes\n", __func__, uh->send_len - len);
-		len = uh->send_len;
-	}
-
+	ustream_printf(uh->us, "%X\r\n", len);
 	ustream_write(uh->us, buf, len, false);
+	ustream_printf(uh->us, "\r\n");
 
 	return len;
 }
@@ -432,9 +410,6 @@ uclient_http_request_done(struct uclient *cl)
 
 	if (uh->state >= HTTP_STATE_REQUEST_DONE)
 		return -1;
-
-	if (uh->send_len > 0)
-		fprintf(stderr, "%s: missing %d POST data bytes\n", __func__, uh->send_len);
 
 	uclient_http_send_headers(uh);
 	uh->state = HTTP_STATE_REQUEST_DONE;
@@ -476,6 +451,4 @@ const struct uclient_backend uclient_backend_http __hidden = {
 	.read = uclient_http_read,
 	.write = uclient_http_send_data,
 	.request = uclient_http_request_done,
-
-	.set_write_len = uclient_http_set_write_len,
 };
