@@ -12,8 +12,9 @@ static struct uclient_url *uclient_get_url(const char *url_str)
 	const struct uclient_backend *backend;
 	const char * const *prefix = NULL;
 	struct uclient_url *url;
-	char *url_buf, *next;
-	int i;
+	const char *location;
+	char *host_buf, *uri_buf, *next;
+	int i, host_len;
 
 	for (i = 0; i < ARRAY_SIZE(backends); i++) {
 		int prefix_len = 0;
@@ -36,28 +37,33 @@ static struct uclient_url *uclient_get_url(const char *url_str)
 	if (!*prefix)
 		return NULL;
 
-	url = calloc_a(sizeof(*url), &url_buf, strlen(url_str) + 1);
-	url->backend = backend;
-	strcpy(url_buf, url_str);
-
-	next = strchr(url_buf, '/');
+	next = strchr(url_str, '/');
 	if (next) {
-		*next = 0;
-		url->location = next + 1;
+		location = next;
+		host_len = next - url_str;
 	} else {
-		url->location = "";
+		location = "/";
+		host_len = strlen(url_str);
 	}
 
-	url->host = url_buf;
-	next = strchr(url_buf, '@');
+	url = calloc_a(sizeof(*url),
+		&host_buf, host_len + 1,
+		&uri_buf, strlen(location) + 1);
+
+	url->backend = backend;
+	url->location = strcpy(uri_buf, location);
+
+	url->host = strncpy(host_buf, url_str, host_len);
+
+	next = strchr(host_buf, '@');
 	if (next) {
 		*next = 0;
 		url->host = next + 1;
 
-		if (uclient_urldecode(url_buf, url_buf, false) < 0)
+		if (uclient_urldecode(host_buf, host_buf, false) < 0)
 			goto free;
 
-		url->auth = url_buf;
+		url->auth = host_buf;
 	}
 
 	/* Literal IPv6 address */

@@ -240,7 +240,7 @@ uclient_http_send_headers(struct uclient_http *uh)
 		req_type = REQ_HEAD;
 
 	ustream_printf(uh->us,
-		"%s /%s HTTP/1.1\r\n"
+		"%s %s HTTP/1.1\r\n"
 		"Host: %s\r\n",
 		request_types[req_type],
 		url->location, url->host);
