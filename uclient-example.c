@@ -9,7 +9,7 @@ static void example_header_done(struct uclient *cl)
 	struct blob_attr *cur;
 	int rem;
 
-	printf("Headers: \n");
+	printf("Headers (%d): \n", cl->status_code);
 	blobmsg_for_each_attr(cur, cl->meta, rem) {
 		printf("%s=%s\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
 	}

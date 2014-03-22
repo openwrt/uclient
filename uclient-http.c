@@ -501,6 +501,19 @@ static void uclient_parse_http_line(struct uclient_http *uh, char *data)
 	char *sep;
 
 	if (uh->state == HTTP_STATE_REQUEST_DONE) {
+		char *code;
+
+		/* HTTP/1.1 */
+		strsep(&data, " ");
+
+		code = strsep(&data, " ");
+		if (!code)
+			goto error;
+
+		uh->uc.status_code = strtoul(code, &sep, 10);
+		if (sep && *sep)
+			goto error;
+
 		uh->state = HTTP_STATE_RECV_HEADERS;
 		return;
 	}
@@ -524,6 +537,12 @@ static void uclient_parse_http_line(struct uclient_http *uh, char *data)
 		sep++;
 
 	blobmsg_add_string(&uh->meta, name, sep);
+	return;
+
+error:
+	uh->uc.status_code = 400;
+	uh->eof = true;
+	uclient_notify_eof(uh);
 }
 
 static void __uclient_notify_read(struct uclient_http *uh)
