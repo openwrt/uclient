@@ -13,6 +13,12 @@
 
 static struct ustream_ssl_ctx *ssl_ctx;
 
+enum auth_type {
+	AUTH_TYPE_UNKNOWN,
+	AUTH_TYPE_NONE,
+	AUTH_TYPE_BASIC,
+};
+
 enum request_type {
 	REQ_GET,
 	REQ_HEAD,
@@ -49,6 +55,9 @@ struct uclient_http {
 	enum request_type req_type;
 	enum http_state state;
 
+	enum auth_type auth_type;
+	char *auth_str;
+
 	long read_chunked;
 	long content_length;
 
@@ -83,10 +92,8 @@ static int uclient_do_connect(struct uclient_http *uh, const char *port)
 	return 0;
 }
 
-static void uclient_http_disconnect(struct uclient *cl)
+static void uclient_http_disconnect(struct uclient_http *uh)
 {
-	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
-
 	if (!uh->us)
 		return;
 
@@ -95,6 +102,16 @@ static void uclient_http_disconnect(struct uclient *cl)
 	ustream_free(&uh->ufd.stream);
 	close(uh->ufd.fd.fd);
 	uh->us = NULL;
+}
+
+static void uclient_http_free_url_state(struct uclient *cl)
+{
+	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+
+	uh->auth_type = AUTH_TYPE_UNKNOWN;
+	free(uh->auth_str);
+	uh->auth_str = NULL;
+	uclient_http_disconnect(uh);
 }
 
 static void uclient_notify_eof(struct uclient_http *uh)
@@ -112,7 +129,38 @@ static void uclient_notify_eof(struct uclient_http *uh)
 	uclient_backend_set_eof(&uh->uc);
 
 	if (uh->connection_close)
-		uclient_http_disconnect(&uh->uc);
+		uclient_http_disconnect(uh);
+}
+
+static void uclient_http_reset_state(struct uclient_http *uh)
+{
+	uclient_backend_reset_state(&uh->uc);
+	uh->read_chunked = -1;
+	uh->content_length = -1;
+	uh->eof = false;
+	uh->connection_close = false;
+	uh->state = HTTP_STATE_INIT;
+
+	if (uh->auth_type == AUTH_TYPE_UNKNOWN && !uh->uc.url->auth)
+		uh->auth_type = AUTH_TYPE_NONE;
+}
+
+static void uclient_http_init_request(struct uclient_http *uh)
+{
+	uclient_http_reset_state(uh);
+	blob_buf_init(&uh->meta, 0);
+}
+
+static enum auth_type
+uclient_http_update_auth_type(struct uclient_http *uh)
+{
+	if (!uh->auth_str)
+		return AUTH_TYPE_NONE;
+
+	if (!strncasecmp(uh->auth_str, "basic", 5))
+		return AUTH_TYPE_BASIC;
+
+	return AUTH_TYPE_NONE;
 }
 
 static void uclient_http_process_headers(struct uclient_http *uh)
@@ -121,6 +169,7 @@ static void uclient_http_process_headers(struct uclient_http *uh)
 		HTTP_HDR_TRANSFER_ENCODING,
 		HTTP_HDR_CONNECTION,
 		HTTP_HDR_CONTENT_LENGTH,
+		HTTP_HDR_AUTH,
 		__HTTP_HDR_MAX,
 	};
 	static const struct blobmsg_policy hdr_policy[__HTTP_HDR_MAX] = {
@@ -128,6 +177,7 @@ static void uclient_http_process_headers(struct uclient_http *uh)
 		[HTTP_HDR_TRANSFER_ENCODING] = hdr("transfer-encoding"),
 		[HTTP_HDR_CONNECTION] = hdr("connection"),
 		[HTTP_HDR_CONTENT_LENGTH] = hdr("content-length"),
+		[HTTP_HDR_AUTH] = hdr("www-authenticate"),
 #undef hdr
 	};
 	struct blob_attr *tb[__HTTP_HDR_MAX];
@@ -146,6 +196,88 @@ static void uclient_http_process_headers(struct uclient_http *uh)
 	cur = tb[HTTP_HDR_CONTENT_LENGTH];
 	if (cur)
 		uh->content_length = strtoul(blobmsg_data(cur), NULL, 10);
+
+	cur = tb[HTTP_HDR_AUTH];
+	if (cur) {
+		free(uh->auth_str);
+		uh->auth_str = strdup(blobmsg_data(cur));
+	}
+
+	uh->auth_type = uclient_http_update_auth_type(uh);
+}
+
+static void
+uclient_http_add_auth_header(struct uclient_http *uh)
+{
+	struct uclient_url *url = uh->uc.url;
+	char *auth_buf;
+	int auth_len;
+
+	if (!url->auth)
+		return;
+
+	auth_len = strlen(url->auth);
+	if (auth_len > 512)
+		return;
+
+	auth_buf = alloca(base64_len(auth_len) + 1);
+	base64_encode(url->auth, auth_len, auth_buf);
+	ustream_printf(uh->us, "Authorization: Basic %s\r\n", auth_buf);
+}
+
+static void
+uclient_http_send_headers(struct uclient_http *uh)
+{
+	struct uclient_url *url = uh->uc.url;
+	struct blob_attr *cur;
+	enum request_type req_type = uh->req_type;
+	int rem;
+
+	if (uh->state >= HTTP_STATE_HEADERS_SENT)
+		return;
+
+	if (uh->auth_type == AUTH_TYPE_UNKNOWN)
+		req_type = REQ_HEAD;
+
+	ustream_printf(uh->us,
+		"%s /%s HTTP/1.1\r\n"
+		"Host: %s\r\n",
+		request_types[req_type],
+		url->location, url->host);
+
+	blobmsg_for_each_attr(cur, uh->headers.head, rem)
+		ustream_printf(uh->us, "%s: %s\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
+
+	if (uh->req_type == REQ_POST)
+		ustream_printf(uh->us, "Transfer-Encoding: chunked\r\n");
+
+	uclient_http_add_auth_header(uh);
+
+	ustream_printf(uh->us, "\r\n");
+}
+
+static void uclient_http_headers_complete(struct uclient_http *uh)
+{
+	enum auth_type auth_type = uh->auth_type;
+
+	uh->state = HTTP_STATE_RECV_DATA;
+	uh->uc.meta = uh->meta.head;
+	uclient_http_process_headers(uh);
+
+	if (auth_type == AUTH_TYPE_UNKNOWN) {
+		uclient_http_init_request(uh);
+		uclient_http_send_headers(uh);
+		uh->state = HTTP_STATE_REQUEST_DONE;
+		return;
+	}
+
+	if (uh->uc.cb->header_done)
+		uh->uc.cb->header_done(&uh->uc);
+
+	if (uh->req_type == REQ_HEAD) {
+		uh->eof = true;
+		uclient_notify_eof(uh);
+	}
 }
 
 static void uclient_parse_http_line(struct uclient_http *uh, char *data)
@@ -159,17 +291,7 @@ static void uclient_parse_http_line(struct uclient_http *uh, char *data)
 	}
 
 	if (!*data) {
-		uh->state = HTTP_STATE_RECV_DATA;
-		uh->uc.meta = uh->meta.head;
-		uclient_http_process_headers(uh);
-		if (uh->uc.cb->header_done)
-			uh->uc.cb->header_done(&uh->uc);
-
-		if (uh->req_type == REQ_HEAD) {
-			uh->eof = true;
-			uclient_notify_eof(uh);
-		}
-
+		uclient_http_headers_complete(uh);
 		return;
 	}
 
@@ -230,7 +352,7 @@ static void __uclient_notify_read(struct uclient_http *uh)
 			len -= cur_len;
 
 			data = ustream_get_read_buf(uh->us, &len);
-		} while (uh->state < HTTP_STATE_RECV_DATA);
+		} while (data && uh->state < HTTP_STATE_RECV_DATA);
 
 		if (!len)
 			return;
@@ -308,22 +430,11 @@ static int uclient_setup_https(struct uclient_http *uh)
 	return 0;
 }
 
-static void uclient_http_reset_state(struct uclient_http *uh)
-{
-	uclient_backend_reset_state(&uh->uc);
-	uh->read_chunked = -1;
-	uh->content_length = -1;
-	uh->eof = false;
-	uh->connection_close = false;
-	uh->state = HTTP_STATE_INIT;
-}
-
 static int uclient_http_connect(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 
-	uclient_http_reset_state(uh);
-	blob_buf_init(&uh->meta, 0);
+	uclient_http_init_request(uh);
 
 	if (uh->us)
 		return 0;
@@ -350,7 +461,7 @@ static void uclient_http_free(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 
-	uclient_http_disconnect(cl);
+	uclient_http_free_url_state(cl);
 	blob_buf_free(&uh->headers);
 	blob_buf_free(&uh->meta);
 	free(uh);
@@ -402,43 +513,6 @@ uclient_http_set_header(struct uclient *cl, const char *name, const char *value)
 
 	blobmsg_add_string(&uh->headers, name, value);
 	return 0;
-}
-
-static void
-uclient_http_send_headers(struct uclient_http *uh)
-{
-	struct uclient_url *url = uh->uc.url;
-	struct blob_attr *cur;
-	int rem;
-
-	if (uh->state >= HTTP_STATE_HEADERS_SENT)
-		return;
-
-	ustream_printf(uh->us,
-		"%s /%s HTTP/1.1\r\n"
-		"Host: %s\r\n",
-		request_types[uh->req_type],
-		url->location, url->host);
-
-	blobmsg_for_each_attr(cur, uh->headers.head, rem)
-		ustream_printf(uh->us, "%s: %s\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
-
-	if (url->auth) {
-		int auth_len = strlen(url->auth);
-		char *auth_buf;
-
-		if (auth_len > 512)
-			return;
-
-		auth_buf = alloca(base64_len(auth_len) + 1);
-		base64_encode(url->auth, auth_len, auth_buf);
-		ustream_printf(uh->us, "Authorization: Basic %s\r\n", auth_buf);
-	}
-
-	if (uh->req_type == REQ_POST)
-		ustream_printf(uh->us, "Transfer-Encoding: chunked\r\n");
-
-	ustream_printf(uh->us, "\r\n");
 }
 
 static int
@@ -547,7 +621,7 @@ const struct uclient_backend uclient_backend_http __hidden = {
 	.alloc = uclient_http_alloc,
 	.free = uclient_http_free,
 	.connect = uclient_http_connect,
-	.update_url = uclient_http_disconnect,
+	.update_url = uclient_http_free_url_state,
 
 	.read = uclient_http_read,
 	.write = uclient_http_send_data,
