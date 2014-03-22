@@ -850,6 +850,44 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 	return len;
 }
 
+bool uclient_http_redirect(struct uclient *cl)
+{
+	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+	struct blobmsg_policy location = {
+		.name = "location",
+		.type = BLOBMSG_TYPE_STRING,
+	};
+	struct uclient_url *url = cl->url;
+	struct blob_attr *tb;
+
+	if (cl->backend != &uclient_backend_http)
+		return false;
+
+	switch (cl->status_code) {
+	case 301:
+	case 302:
+	case 307:
+		break;
+	default:
+		return false;
+	}
+
+	blobmsg_parse(&location, 1, &tb, blob_data(uh->meta.head), blob_len(uh->meta.head));
+	if (!tb)
+		return false;
+
+	url = uclient_get_url(blobmsg_data(tb), url->auth);
+	if (!url)
+		return false;
+
+	free(cl->url);
+	cl->url = url;
+	uclient_http_connect(cl);
+	uclient_http_request_done(cl);
+
+	return true;
+}
+
 const struct uclient_backend uclient_backend_http = {
 	.prefix = uclient_http_prefix,
 

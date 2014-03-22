@@ -31,5 +31,6 @@ struct uclient_url {
 void uclient_backend_set_error(struct uclient *cl);
 void uclient_backend_set_eof(struct uclient *cl);
 void uclient_backend_reset_state(struct uclient *cl);
+struct uclient_url *uclient_get_url(const char *url_str, const char *auth_str);
 
 #endif

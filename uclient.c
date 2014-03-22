@@ -3,7 +3,8 @@
 #include "uclient-utils.h"
 #include "uclient-backend.h"
 
-static struct uclient_url *uclient_get_url(const char *url_str)
+struct uclient_url * __hidden
+uclient_get_url(const char *url_str, const char *auth_str)
 {
 	static const struct uclient_backend *backends[] = {
 		&uclient_backend_http,
@@ -13,7 +14,7 @@ static struct uclient_url *uclient_get_url(const char *url_str)
 	const char * const *prefix = NULL;
 	struct uclient_url *url;
 	const char *location;
-	char *host_buf, *uri_buf, *next;
+	char *host_buf, *uri_buf, *auth_buf, *next;
 	int i, host_len;
 
 	for (i = 0; i < ARRAY_SIZE(backends); i++) {
@@ -48,7 +49,8 @@ static struct uclient_url *uclient_get_url(const char *url_str)
 
 	url = calloc_a(sizeof(*url),
 		&host_buf, host_len + 1,
-		&uri_buf, strlen(location) + 1);
+		&uri_buf, strlen(location) + 1,
+		&auth_buf, auth_str ? strlen(auth_str) + 1 : 0);
 
 	url->backend = backend;
 	url->location = strcpy(uri_buf, location);
@@ -65,6 +67,9 @@ static struct uclient_url *uclient_get_url(const char *url_str)
 
 		url->auth = host_buf;
 	}
+
+	if (!url->auth && auth_str)
+		url->auth = strcpy(auth_buf, auth_str);
 
 	/* Literal IPv6 address */
 	if (*url->host == '[') {
@@ -94,7 +99,7 @@ struct uclient *uclient_new(const char *url_str, const struct uclient_cb *cb)
 	struct uclient *cl;
 	struct uclient_url *url;
 
-	url = uclient_get_url(url_str);
+	url = uclient_get_url(url_str, NULL);
 	if (!url)
 		return NULL;
 
@@ -115,7 +120,7 @@ int uclient_connect_url(struct uclient *cl, const char *url_str)
 	const struct uclient_backend *backend = cl->backend;
 
 	if (url_str) {
-		url = uclient_get_url(url_str);
+		url = uclient_get_url(url_str, NULL);
 		if (!url)
 			return -1;
 
