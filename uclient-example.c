@@ -55,6 +55,14 @@ static void example_request_sm(struct uclient *cl)
 
 static void example_eof(struct uclient *cl)
 {
+	static int retries;
+
+	if (retries < 10 && uclient_http_redirect(cl)) {
+		retries++;
+		return;
+	}
+
+	retries = 0;
 	example_request_sm(cl);
 }
 
