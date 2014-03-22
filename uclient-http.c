@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <stdint.h>
 
 #include <libubox/ustream.h>
 #include <libubox/ustream-ssl.h>
@@ -12,11 +13,13 @@
 #include "uclient-backend.h"
 
 static struct ustream_ssl_ctx *ssl_ctx;
+static uint32_t nc;
 
 enum auth_type {
 	AUTH_TYPE_UNKNOWN,
 	AUTH_TYPE_NONE,
 	AUTH_TYPE_BASIC,
+	AUTH_TYPE_DIGEST,
 };
 
 enum request_type {
@@ -160,6 +163,9 @@ uclient_http_update_auth_type(struct uclient_http *uh)
 	if (!strncasecmp(uh->auth_str, "basic", 5))
 		return AUTH_TYPE_BASIC;
 
+	if (!strncasecmp(uh->auth_str, "digest", 6))
+		return AUTH_TYPE_DIGEST;
+
 	return AUTH_TYPE_NONE;
 }
 
@@ -207,22 +213,231 @@ static void uclient_http_process_headers(struct uclient_http *uh)
 }
 
 static void
-uclient_http_add_auth_header(struct uclient_http *uh)
+uclient_http_add_auth_basic(struct uclient_http *uh)
 {
 	struct uclient_url *url = uh->uc.url;
+	int auth_len = strlen(url->auth);
 	char *auth_buf;
-	int auth_len;
 
-	if (!url->auth)
-		return;
-
-	auth_len = strlen(url->auth);
 	if (auth_len > 512)
 		return;
 
 	auth_buf = alloca(base64_len(auth_len) + 1);
 	base64_encode(url->auth, auth_len, auth_buf);
 	ustream_printf(uh->us, "Authorization: Basic %s\r\n", auth_buf);
+}
+
+static char *digest_unquote_sep(char **str)
+{
+	char *cur = *str + 1;
+	char *start = cur;
+	char *out;
+
+	if (**str != '"')
+		return NULL;
+
+	out = cur;
+	while (1) {
+		if (!*cur)
+			return NULL;
+
+		if (*cur == '"') {
+			cur++;
+			break;
+		}
+
+		if (*cur == '\\')
+			cur++;
+
+		*(out++) = *(cur++);
+	}
+
+	if (*cur == ',')
+		cur++;
+
+	*out = 0;
+	*str = cur;
+
+	return start;
+}
+
+static bool strmatch(char **str, const char *prefix)
+{
+	int len = strlen(prefix);
+
+	if (strncmp(*str, prefix, len) != 0 || (*str)[len] != '=')
+		return false;
+
+	*str += len + 1;
+	return true;
+}
+
+static void
+get_cnonce(char *dest)
+{
+	uint32_t val = nc;
+	FILE *f;
+
+	f = fopen("/dev/urandom", "r");
+	if (f) {
+		fread(&val, sizeof(val), 1, f);
+		fclose(f);
+	}
+
+	bin_to_hex(dest, &val, sizeof(val));
+}
+
+static void add_field(char **buf, int *ofs, int *len, const char *name, const char *val)
+{
+	int available = *len - *ofs;
+	int required;
+	const char *next;
+	char *cur;
+
+	if (*len && !*buf)
+		return;
+
+	required = strlen(name) + 4 + strlen(val) * 2;
+	if (required > available)
+		*len += required - available + 64;
+
+	*buf = realloc(*buf, *len);
+	if (!*buf)
+		return;
+
+	cur = *buf + *ofs;
+	cur += sprintf(cur, ", %s=\"", name);
+
+	while ((next = strchr(val, '"'))) {
+		if (next > val) {
+			memcpy(cur, val, next - val);
+			cur += next - val;
+		}
+
+		cur += sprintf(cur, "\\\"");
+		val = next + 1;
+	}
+
+	cur += sprintf(cur, "%s\"", val);
+	*ofs = cur - *buf;
+}
+
+static void
+uclient_http_add_auth_digest(struct uclient_http *uh)
+{
+	struct uclient_url *url = uh->uc.url;
+	const char *realm = NULL, *opaque = NULL;
+	const char *user, *password;
+	char *buf, *next;
+	int len, ofs;
+
+	char cnonce_str[9];
+	char nc_str[9];
+	char ahash[33];
+	char hash[33];
+
+	struct http_digest_data data = {
+		.nc = nc_str,
+		.cnonce = cnonce_str,
+		.auth_hash = ahash,
+	};
+
+	len = strlen(uh->auth_str) + 1;
+	if (len > 512)
+		return;
+
+	buf = alloca(len);
+	strcpy(buf, uh->auth_str);
+
+	/* skip auth type */
+	strsep(&buf, " ");
+
+	next = buf;
+	while (*next) {
+		const char **dest = NULL;
+
+		while (isspace(*next))
+			next++;
+
+		if (strmatch(&next, "realm"))
+			dest = &realm;
+		else if (strmatch(&next, "qop"))
+			dest = &data.qop;
+		else if (strmatch(&next, "nonce"))
+			dest = &data.nonce;
+		else if (strmatch(&next, "opaque"))
+			dest = &opaque;
+		else
+			return;
+
+		*dest = digest_unquote_sep(&next);
+	}
+
+	if (!realm || !data.qop || !data.nonce)
+		return;
+
+	sprintf(nc_str, "%08x", nc++);
+	get_cnonce(cnonce_str);
+
+	data.qop = "auth";
+	data.uri = url->location;
+	data.method = request_types[uh->req_type];
+
+	password = strchr(url->auth, ':');
+	if (password) {
+		char *user_buf;
+
+		len = password - url->auth;
+		if (len > 256)
+			return;
+
+		user_buf = alloca(len + 1);
+		strncpy(user_buf, url->auth, len);
+		user_buf[len] = 0;
+		user = user_buf;
+		password++;
+	} else {
+		user = url->auth;
+		password = "";
+	}
+
+	http_digest_calculate_auth_hash(ahash, user, realm, password);
+	http_digest_calculate_response(hash, &data);
+
+	buf = NULL;
+	len = 0;
+	ofs = 0;
+
+	add_field(&buf, &ofs, &len, "username", user);
+	add_field(&buf, &ofs, &len, "realm", realm);
+	add_field(&buf, &ofs, &len, "nonce", data.nonce);
+	add_field(&buf, &ofs, &len, "uri", data.uri);
+	add_field(&buf, &ofs, &len, "cnonce", data.cnonce);
+	add_field(&buf, &ofs, &len, "response", hash);
+	if (opaque)
+		add_field(&buf, &ofs, &len, "opaque", opaque);
+
+	ustream_printf(uh->us, "Authorization: Digest nc=%s, qop=%s%s\r\n", data.nc, data.qop, buf);
+	free(buf);
+}
+
+static void
+uclient_http_add_auth_header(struct uclient_http *uh)
+{
+	if (!uh->uc.url->auth)
+		return;
+
+	switch (uh->auth_type) {
+	case AUTH_TYPE_UNKNOWN:
+	case AUTH_TYPE_NONE:
+		break;
+	case AUTH_TYPE_BASIC:
+		uclient_http_add_auth_basic(uh);
+		break;
+	case AUTH_TYPE_DIGEST:
+		uclient_http_add_auth_digest(uh);
+		break;
+	}
 }
 
 static void
