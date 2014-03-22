@@ -47,6 +47,8 @@ int uclient_write(struct uclient *cl, char *buf, int len);
 int uclient_request(struct uclient *cl);
 
 /* HTTP */
+extern const struct uclient_backend uclient_backend_http;
+
 int uclient_http_set_header(struct uclient *cl, const char *name, const char *value);
 int uclient_http_reset_headers(struct uclient *cl, const char *name, const char *value);
 int uclient_http_set_request_type(struct uclient *cl, const char *type);

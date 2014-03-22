@@ -28,7 +28,6 @@ struct uclient_url {
 	const char *auth;
 };
 
-extern const struct uclient_backend uclient_backend_http;
 void uclient_backend_set_eof(struct uclient *cl);
 void uclient_backend_reset_state(struct uclient *cl);
 

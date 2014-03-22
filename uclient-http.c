@@ -850,7 +850,7 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 	return len;
 }
 
-const struct uclient_backend uclient_backend_http __hidden = {
+const struct uclient_backend uclient_backend_http = {
 	.prefix = uclient_http_prefix,
 
 	.alloc = uclient_http_alloc,
