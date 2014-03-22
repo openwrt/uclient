@@ -28,6 +28,7 @@ struct uclient_url {
 	const char *auth;
 };
 
+void uclient_backend_set_error(struct uclient *cl);
 void uclient_backend_set_eof(struct uclient *cl);
 void uclient_backend_reset_state(struct uclient *cl);
 

@@ -184,7 +184,7 @@ static void uclient_backend_change_state(struct uclient *cl)
 	uloop_timeout_set(&cl->timeout, 1);
 }
 
-void uclient_backend_set_error(struct uclient *cl)
+void __hidden uclient_backend_set_error(struct uclient *cl)
 {
 	if (cl->error)
 		return;
