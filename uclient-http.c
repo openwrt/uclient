@@ -12,7 +12,6 @@
 #include "uclient-utils.h"
 #include "uclient-backend.h"
 
-static struct ustream_ssl_ctx *ssl_ctx;
 static uint32_t nc;
 
 enum auth_type {
@@ -47,6 +46,7 @@ static const char * const request_types[__REQ_MAX] = {
 struct uclient_http {
 	struct uclient uc;
 
+	struct ustream_ssl_ctx *ssl_ctx;
 	struct ustream *us;
 
 	struct ustream_fd ufd;
@@ -653,13 +653,13 @@ static int uclient_setup_https(struct uclient_http *uh)
 	if (ret)
 		return ret;
 
-	if (!ssl_ctx)
-		ssl_ctx = ustream_ssl_context_new(false);
+	if (!uh->ssl_ctx)
+		uh->ssl_ctx = ustream_ssl_context_new(false);
 
 	us->string_data = true;
 	us->notify_state = uclient_ssl_notify_state;
 	us->notify_read = uclient_ssl_notify_read;
-	ustream_ssl_init(&uh->ussl, &uh->ufd.stream, ssl_ctx, false);
+	ustream_ssl_init(&uh->ussl, &uh->ufd.stream, uh->ssl_ctx, false);
 
 	return 0;
 }
@@ -694,6 +694,9 @@ static struct uclient *uclient_http_alloc(void)
 static void uclient_http_free(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+
+	if (uh->ssl_ctx)
+		ustream_ssl_context_free(uh->ssl_ctx);
 
 	uclient_http_free_url_state(cl);
 	blob_buf_free(&uh->headers);
