@@ -3,7 +3,7 @@
 #include "uclient-utils.h"
 #include "uclient-backend.h"
 
-struct uclient_url * __hidden
+struct uclient_url __hidden *
 uclient_get_url(const char *url_str, const char *auth_str)
 {
 	static const struct uclient_backend *backends[] = {
