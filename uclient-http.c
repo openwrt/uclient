@@ -12,8 +12,6 @@
 #include "uclient-utils.h"
 #include "uclient-backend.h"
 
-static uint32_t nc;
-
 enum auth_type {
 	AUTH_TYPE_UNKNOWN,
 	AUTH_TYPE_NONE,
@@ -63,6 +61,8 @@ struct uclient_http {
 
 	long read_chunked;
 	long content_length;
+
+	uint32_t nc;
 
 	struct blob_buf headers;
 	struct blob_buf meta;
@@ -275,7 +275,7 @@ static bool strmatch(char **str, const char *prefix)
 static void
 get_cnonce(char *dest)
 {
-	uint32_t val = nc;
+	uint32_t val = 0;
 	FILE *f;
 
 	f = fopen("/dev/urandom", "r");
@@ -376,7 +376,7 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 	if (!realm || !data.qop || !data.nonce)
 		return;
 
-	sprintf(nc_str, "%08x", nc++);
+	sprintf(nc_str, "%08x", uh->nc++);
 	get_cnonce(cnonce_str);
 
 	data.qop = "auth";
