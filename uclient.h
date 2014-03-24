@@ -54,4 +54,6 @@ int uclient_http_reset_headers(struct uclient *cl, const char *name, const char 
 int uclient_http_set_request_type(struct uclient *cl, const char *type);
 bool uclient_http_redirect(struct uclient *cl);
 
+int uclient_http_set_ssl_ctx(struct uclient *cl, struct ustream_ssl_ctx *ctx);
+
 #endif

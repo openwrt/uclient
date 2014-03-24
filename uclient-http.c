@@ -50,6 +50,7 @@ struct uclient_http {
 	struct ustream_fd ufd;
 	struct ustream_ssl ussl;
 
+	bool ssl_ctx_ext;
 	bool ssl;
 	bool eof;
 	bool connection_close;
@@ -691,13 +692,19 @@ static struct uclient *uclient_http_alloc(void)
 	return &uh->uc;
 }
 
+static void uclient_http_free_ssl_ctx(struct uclient_http *uh)
+{
+	if (uh->ssl_ctx && !uh->ssl_ctx_ext)
+		ustream_ssl_context_free(uh->ssl_ctx);
+
+	uh->ssl_ctx_ext = false;
+}
+
 static void uclient_http_free(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 
-	if (uh->ssl_ctx)
-		ustream_ssl_context_free(uh->ssl_ctx);
-
+	uclient_http_free_ssl_ctx(uh);
 	uclient_http_free_url_state(cl);
 	blob_buf_free(&uh->headers);
 	blob_buf_free(&uh->meta);
@@ -889,6 +896,19 @@ bool uclient_http_redirect(struct uclient *cl)
 	uclient_http_request_done(cl);
 
 	return true;
+}
+
+int uclient_http_set_ssl_ctx(struct uclient *cl, struct ustream_ssl_ctx *ctx)
+{
+	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+
+	uclient_http_free_url_state(cl);
+
+	uclient_http_free_ssl_ctx(uh);
+	uh->ssl_ctx = ctx;
+	uh->ssl_ctx_ext = !!ctx;
+
+	return 0;
 }
 
 const struct uclient_backend uclient_backend_http = {
