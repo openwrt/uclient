@@ -54,6 +54,7 @@ uclient_get_url(const char *url_str, const char *auth_str)
 
 	url->backend = backend;
 	url->location = strcpy(uri_buf, location);
+	url->prefix = prefix - backend->prefix;
 
 	url->host = strncpy(host_buf, url_str, host_len);
 
