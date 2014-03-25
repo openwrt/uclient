@@ -50,6 +50,7 @@ struct uclient_http {
 	struct ustream_fd ufd;
 	struct ustream_ssl ussl;
 
+	bool ssl_require_validation;
 	bool ssl_ctx_ext;
 	bool ssl;
 	bool eof;
@@ -116,6 +117,14 @@ static void uclient_http_free_url_state(struct uclient *cl)
 	free(uh->auth_str);
 	uh->auth_str = NULL;
 	uclient_http_disconnect(uh);
+}
+
+static void uclient_http_error(struct uclient_http *uh, int code)
+{
+	uh->state = HTTP_STATE_ERROR;
+	uh->us->eof = true;
+	ustream_state_change(uh->us);
+	uclient_backend_set_error(&uh->uc, code);
 }
 
 static void uclient_notify_eof(struct uclient_http *uh)
@@ -552,7 +561,7 @@ static void __uclient_notify_read(struct uclient_http *uh)
 	char *data;
 	int len;
 
-	if (uh->state < HTTP_STATE_REQUEST_DONE)
+	if (uh->state < HTTP_STATE_REQUEST_DONE || uh->state == HTTP_STATE_ERROR)
 		return;
 
 	data = ustream_get_read_buf(uh->us, &len);
@@ -642,6 +651,34 @@ static void uclient_ssl_notify_state(struct ustream *us)
 	uclient_notify_eof(uh);
 }
 
+static void uclient_ssl_notify_error(struct ustream_ssl *ssl, int error, const char *str)
+{
+	struct uclient_http *uh = container_of(ssl, struct uclient_http, ussl);
+
+	uclient_http_error(uh, UCLIENT_ERROR_CONNECT);
+}
+
+static void uclient_ssl_notify_verify_error(struct ustream_ssl *ssl, int error, const char *str)
+{
+	struct uclient_http *uh = container_of(ssl, struct uclient_http, ussl);
+
+	if (!uh->ssl_require_validation)
+		return;
+
+	uclient_http_error(uh, UCLIENT_ERROR_SSL_INVALID_CERT);
+}
+
+static void uclient_ssl_notify_connected(struct ustream_ssl *ssl)
+{
+	struct uclient_http *uh = container_of(ssl, struct uclient_http, ussl);
+
+	if (!uh->ssl_require_validation)
+		return;
+
+	if (!uh->ussl.valid_cn)
+		uclient_http_error(uh, UCLIENT_ERROR_SSL_CN_MISMATCH);
+}
+
 static int uclient_setup_https(struct uclient_http *uh)
 {
 	struct ustream *us = &uh->ussl.stream;
@@ -660,7 +697,11 @@ static int uclient_setup_https(struct uclient_http *uh)
 	us->string_data = true;
 	us->notify_state = uclient_ssl_notify_state;
 	us->notify_read = uclient_ssl_notify_read;
+	uh->ussl.notify_error = uclient_ssl_notify_error;
+	uh->ussl.notify_verify_error = uclient_ssl_notify_verify_error;
+	uh->ussl.notify_connected = uclient_ssl_notify_connected;
 	ustream_ssl_init(&uh->ussl, &uh->ufd.stream, uh->ssl_ctx, false);
+	ustream_ssl_set_peer_cn(&uh->ussl, uh->uc.url->host);
 
 	return 0;
 }
@@ -683,7 +724,7 @@ static int uclient_http_connect(struct uclient *cl)
 		ret = uclient_setup_http(uh);
 
 	if (ret)
-		uh->state = HTTP_STATE_ERROR;
+		uclient_http_error(uh, UCLIENT_ERROR_CONNECT);
 
 	return ret;
 }
@@ -904,15 +945,19 @@ bool uclient_http_redirect(struct uclient *cl)
 	return true;
 }
 
-int uclient_http_set_ssl_ctx(struct uclient *cl, struct ustream_ssl_ctx *ctx)
+int uclient_http_set_ssl_ctx(struct uclient *cl, struct ustream_ssl_ctx *ctx, bool require_validation)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+
+	if (cl->backend != &uclient_backend_http)
+		return -1;
 
 	uclient_http_free_url_state(cl);
 
 	uclient_http_free_ssl_ctx(uh);
 	uh->ssl_ctx = ctx;
 	uh->ssl_ctx_ext = !!ctx;
+	uh->ssl_require_validation = !!ctx && require_validation;
 
 	return 0;
 }

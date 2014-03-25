@@ -8,6 +8,13 @@
 struct uclient_cb;
 struct uclient_backend;
 
+enum uclient_error_code {
+	UCLIENT_ERROR_UNKNOWN,
+	UCLIENT_ERROR_CONNECT,
+	UCLIENT_ERROR_SSL_INVALID_CERT,
+	UCLIENT_ERROR_SSL_CN_MISMATCH,
+};
+
 struct uclient {
 	const struct uclient_backend *backend;
 	const struct uclient_cb *cb;
@@ -16,7 +23,7 @@ struct uclient {
 	void *priv;
 
 	bool eof;
-	bool error;
+	int error_code;
 	int status_code;
 	struct blob_attr *meta;
 
@@ -28,7 +35,7 @@ struct uclient_cb {
 	void (*data_sent)(struct uclient *cl);
 	void (*data_eof)(struct uclient *cl);
 	void (*header_done)(struct uclient *cl);
-	void (*error)(struct uclient *cl);
+	void (*error)(struct uclient *cl, int code);
 };
 
 struct uclient *uclient_new(const char *url, const struct uclient_cb *cb);
@@ -54,6 +61,6 @@ int uclient_http_reset_headers(struct uclient *cl, const char *name, const char 
 int uclient_http_set_request_type(struct uclient *cl, const char *type);
 bool uclient_http_redirect(struct uclient *cl);
 
-int uclient_http_set_ssl_ctx(struct uclient *cl, struct ustream_ssl_ctx *ctx);
+int uclient_http_set_ssl_ctx(struct uclient *cl, struct ustream_ssl_ctx *ctx, bool require_validation);
 
 #endif

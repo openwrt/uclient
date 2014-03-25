@@ -178,8 +178,8 @@ static void __uclient_backend_change_state(struct uloop_timeout *timeout)
 {
 	struct uclient *cl = container_of(timeout, struct uclient, timeout);
 
-	if (cl->error && cl->cb->error)
-		cl->cb->error(cl);
+	if (cl->error_code && cl->cb->error)
+		cl->cb->error(cl, cl->error_code);
 	else if (cl->eof && cl->cb->data_eof)
 		cl->cb->data_eof(cl);
 }
@@ -190,18 +190,18 @@ static void uclient_backend_change_state(struct uclient *cl)
 	uloop_timeout_set(&cl->timeout, 1);
 }
 
-void __hidden uclient_backend_set_error(struct uclient *cl)
+void __hidden uclient_backend_set_error(struct uclient *cl, int code)
 {
-	if (cl->error)
+	if (cl->error_code)
 		return;
 
-	cl->error = true;
+	cl->error_code = code;
 	uclient_backend_change_state(cl);
 }
 
 void __hidden uclient_backend_set_eof(struct uclient *cl)
 {
-	if (cl->eof || cl->error)
+	if (cl->eof || cl->error_code)
 		return;
 
 	cl->eof = true;
@@ -210,7 +210,7 @@ void __hidden uclient_backend_set_eof(struct uclient *cl)
 
 void __hidden uclient_backend_reset_state(struct uclient *cl)
 {
-	cl->error = false;
 	cl->eof = false;
+	cl->error_code = 0;
 	uloop_timeout_cancel(&cl->timeout);
 }

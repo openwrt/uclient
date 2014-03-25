@@ -47,7 +47,6 @@ static void example_request_sm(struct uclient *cl)
 		uclient_request(cl);
 		break;
 	default:
-		uclient_free(cl);
 		uloop_end();
 		break;
 	};
@@ -66,30 +65,76 @@ static void example_eof(struct uclient *cl)
 	example_request_sm(cl);
 }
 
+static void example_error(struct uclient *cl, int code)
+{
+	fprintf(stderr, "Error %d!\n", code);
+	example_request_sm(cl);
+}
+
 static const struct uclient_cb cb = {
 	.header_done = example_header_done,
 	.data_read = example_read_data,
 	.data_eof = example_eof,
+	.error = example_error,
 };
+
+static int usage(const char *progname)
+{
+	fprintf(stderr,
+		"Usage: %s [options] <hostname> <port>\n"
+		"Options:\n"
+		"	-c <cert>:         Load CA certificates from file <cert>\n"
+		"	-C:                Skip certificate CN verification against hostname\n"
+		"\n", progname);
+	return 1;
+}
+
 
 int main(int argc, char **argv)
 {
+	struct ustream_ssl_ctx *ctx;
+	const char *progname = argv[0];
 	struct uclient *cl;
+	bool verify = true;
+	int ch;
 
-	if (argc != 2) {
-		fprintf(stderr, "Usage: %s <URL>\n", argv[0]);
-		return 1;
+	ctx = ustream_ssl_context_new(false);
+
+	while ((ch = getopt(argc, argv, "Cc:")) != -1) {
+		switch(ch) {
+		case 'c':
+			ustream_ssl_context_add_ca_crt_file(ctx, optarg);
+			break;
+		case 'C':
+			verify = false;
+			break;
+		default:
+			return usage(progname);
+		}
 	}
 
+	argv += optind;
+	argc -= optind;
+
+	if (argc != 1)
+		return usage(progname);
+
 	uloop_init();
-	cl = uclient_new(argv[1], &cb);
+
+	cl = uclient_new(argv[0], &cb);
 	if (!cl) {
 		fprintf(stderr, "Failed to allocate uclient context\n");
 		return 1;
 	}
+
+	uclient_http_set_ssl_ctx(cl, ctx, verify);
 	example_request_sm(cl);
 	uloop_run();
 	uloop_done();
+
+	uclient_free(cl);
+	ustream_ssl_context_free(ctx);
+
 
 	return 0;
 }
