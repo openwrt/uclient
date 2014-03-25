@@ -668,6 +668,7 @@ static int uclient_setup_https(struct uclient_http *uh)
 static int uclient_http_connect(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+	int ret;
 
 	uclient_http_init_request(uh);
 
@@ -677,9 +678,14 @@ static int uclient_http_connect(struct uclient *cl)
 	uh->ssl = cl->url->prefix == PREFIX_HTTPS;
 
 	if (uh->ssl)
-		return uclient_setup_https(uh);
+		ret = uclient_setup_https(uh);
 	else
-		return uclient_setup_http(uh);
+		ret = uclient_setup_http(uh);
+
+	if (ret)
+		uh->state = HTTP_STATE_ERROR;
+
+	return ret;
 }
 
 static struct uclient *uclient_http_alloc(void)
