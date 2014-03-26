@@ -138,7 +138,7 @@ int main(int argc, char **argv)
 
 	uloop_init();
 
-	cl = uclient_new(argv[0], &cb);
+	cl = uclient_new(argv[0], NULL, &cb);
 	if (!cl) {
 		fprintf(stderr, "Failed to allocate uclient context\n");
 		return 1;

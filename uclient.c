@@ -112,12 +112,12 @@ free:
 	return NULL;
 }
 
-struct uclient *uclient_new(const char *url_str, const struct uclient_cb *cb)
+struct uclient *uclient_new(const char *url_str, const char *auth_str, const struct uclient_cb *cb)
 {
 	struct uclient *cl;
 	struct uclient_url *url;
 
-	url = uclient_get_url(url_str, NULL);
+	url = uclient_get_url(url_str, auth_str);
 	if (!url)
 		return NULL;
 

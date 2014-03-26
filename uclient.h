@@ -55,7 +55,7 @@ struct uclient_cb {
 	void (*error)(struct uclient *cl, int code);
 };
 
-struct uclient *uclient_new(const char *url, const struct uclient_cb *cb);
+struct uclient *uclient_new(const char *url, const char *auth_str, const struct uclient_cb *cb);
 void uclient_free(struct uclient *cl);
 
 int uclient_connect_url(struct uclient *cl, const char *url_str);
