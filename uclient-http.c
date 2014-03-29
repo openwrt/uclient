@@ -850,6 +850,8 @@ uclient_http_request_done(struct uclient *cl)
 		return -1;
 
 	uclient_http_send_headers(uh);
+	if (uh->req_type == REQ_POST)
+		ustream_printf(uh->us, "0\r\n\r\n");
 	uh->state = HTTP_STATE_REQUEST_DONE;
 
 	return 0;
