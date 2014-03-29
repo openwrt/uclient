@@ -496,6 +496,8 @@ uclient_http_send_headers(struct uclient_http *uh)
 	uclient_http_add_auth_header(uh);
 
 	ustream_printf(uh->us, "\r\n");
+
+	uh->state = HTTP_STATE_HEADERS_SENT;
 }
 
 static void uclient_http_headers_complete(struct uclient_http *uh)
