@@ -801,7 +801,7 @@ uclient_http_set_request_type(struct uclient *cl, const char *type)
 }
 
 int
-uclient_http_reset_headers(struct uclient *cl, const char *name, const char *value)
+uclient_http_reset_headers(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 
