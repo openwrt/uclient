@@ -132,27 +132,30 @@ struct uclient *uclient_new(const char *url_str, const char *auth_str, const str
 	return cl;
 }
 
-int uclient_connect_url(struct uclient *cl, const char *url_str)
+int uclient_set_url(struct uclient *cl, const char *url_str)
 {
-	struct uclient_url *url = cl->url;
 	const struct uclient_backend *backend = cl->backend;
+	struct uclient_url *url = cl->url;
 
-	if (url_str) {
-		url = uclient_get_url(url_str, NULL);
-		if (!url)
-			return -1;
+	url = uclient_get_url(url_str, NULL);
+	if (!url)
+		return -1;
 
-		if (url->backend != cl->backend)
-			return -1;
+	if (url->backend != cl->backend)
+		return -1;
 
-		free(cl->url);
-		cl->url = url;
+	free(cl->url);
+	cl->url = url;
 
-		if (backend->update_url)
-			backend->update_url(cl);
-	}
+	if (backend->update_url)
+		backend->update_url(cl);
 
-	return backend->connect(cl);
+	return 0;
+}
+
+int uclient_connect(struct uclient *cl)
+{
+	return cl->backend->connect(cl);
 }
 
 void uclient_free(struct uclient *cl)
