@@ -132,12 +132,12 @@ struct uclient *uclient_new(const char *url_str, const char *auth_str, const str
 	return cl;
 }
 
-int uclient_set_url(struct uclient *cl, const char *url_str)
+int uclient_set_url(struct uclient *cl, const char *url_str, const char *auth_str)
 {
 	const struct uclient_backend *backend = cl->backend;
 	struct uclient_url *url = cl->url;
 
-	url = uclient_get_url(url_str, NULL);
+	url = uclient_get_url(url_str, auth_str);
 	if (!url)
 		return -1;
 

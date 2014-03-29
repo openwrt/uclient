@@ -58,7 +58,7 @@ struct uclient_cb {
 struct uclient *uclient_new(const char *url, const char *auth_str, const struct uclient_cb *cb);
 void uclient_free(struct uclient *cl);
 
-int uclient_set_url(struct uclient *cl, const char *url_str);
+int uclient_set_url(struct uclient *cl, const char *url, const char *auth);
 int uclient_connect(struct uclient *cl);
 
 int uclient_read(struct uclient *cl, char *buf, int len);
