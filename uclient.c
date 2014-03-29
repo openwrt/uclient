@@ -101,8 +101,10 @@ uclient_get_url(const char *url_str, const char *auth_str)
 			url->port = next + 1;
 	} else {
 		next = strrchr(url->host, ':');
-		if (next)
+		if (next) {
+			*next = 0;
 			url->port = next + 1;
+		}
 	}
 
 	return url;
