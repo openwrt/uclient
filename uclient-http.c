@@ -835,10 +835,11 @@ uclient_http_send_data(struct uclient *cl, char *buf, unsigned int len)
 
 	uclient_http_send_headers(uh);
 
-	ustream_printf(uh->us, "%X\r\n", len);
-	if (len > 0)
+	if (len > 0) {
+		ustream_printf(uh->us, "%X\r\n", len);
 		ustream_write(uh->us, buf, len, false);
-	ustream_printf(uh->us, "\r\n");
+		ustream_printf(uh->us, "\r\n");
+	}
 
 	return len;
 }
