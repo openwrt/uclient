@@ -18,6 +18,8 @@
 #ifndef __LIBUBOX_UCLIENT_H
 #define __LIBUBOX_UCLIENT_H
 
+#include <netinet/in.h>
+
 #include <libubox/blob.h>
 #include <libubox/ustream.h>
 #include <libubox/ustream-ssl.h>
@@ -32,9 +34,17 @@ enum uclient_error_code {
 	UCLIENT_ERROR_SSL_CN_MISMATCH,
 };
 
+union uclient_addr {
+	struct sockaddr sa;
+	struct sockaddr_in sin;
+	struct sockaddr_in6 sin6;
+};
+
 struct uclient {
 	const struct uclient_backend *backend;
 	const struct uclient_cb *cb;
+
+	union uclient_addr local_addr, remote_addr;
 
 	struct uclient_url *url;
 	void *priv;
@@ -64,6 +74,8 @@ int uclient_connect(struct uclient *cl);
 int uclient_read(struct uclient *cl, char *buf, int len);
 int uclient_write(struct uclient *cl, char *buf, int len);
 int uclient_request(struct uclient *cl);
+
+char *uclient_get_addr(char *dest, int *port, union uclient_addr *a);
 
 /* HTTP */
 extern const struct uclient_backend uclient_backend_http;

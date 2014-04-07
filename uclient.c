@@ -15,10 +15,37 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include <arpa/inet.h>
 #include <libubox/ustream-ssl.h>
 #include "uclient.h"
 #include "uclient-utils.h"
 #include "uclient-backend.h"
+
+char *uclient_get_addr(char *dest, int *port, union uclient_addr *a)
+{
+	int portval;
+	void *ptr;
+
+	switch(a->sa.sa_family) {
+	case AF_INET:
+		ptr = &a->sin.sin_addr;
+		portval = a->sin.sin_port;
+		break;
+	case AF_INET6:
+		ptr = &a->sin6.sin6_addr;
+		portval = a->sin6.sin6_port;
+		break;
+	default:
+		return strcpy(dest, "Unknown");
+	}
+
+	inet_ntop(a->sa.sa_family, ptr, dest, INET6_ADDRSTRLEN);
+	if (port)
+		*port = ntohs(portval);
+
+	return dest;
+}
+
 
 struct uclient_url __hidden *
 uclient_get_url(const char *url_str, const char *auth_str)

@@ -15,16 +15,27 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#include <libubox/blobmsg.h>
+
 #include <unistd.h>
 #include <stdio.h>
 
+#include <libubox/blobmsg.h>
+
 #include "uclient.h"
+
 
 static void example_header_done(struct uclient *cl)
 {
 	struct blob_attr *cur;
+	char local[INET6_ADDRSTRLEN], remote[INET6_ADDRSTRLEN];
+	int local_port, remote_port;
 	int rem;
+
+	uclient_get_addr(local, &local_port, &cl->local_addr);
+	uclient_get_addr(remote, &remote_port, &cl->remote_addr);
+
+	fprintf(stderr, "Connected: %s:%d -> %s:%d\n",
+		local, local_port, remote, remote_port);
 
 	printf("Headers (%d): \n", cl->status_code);
 	blobmsg_for_each_attr(cur, cl->meta, rem) {
