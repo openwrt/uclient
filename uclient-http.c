@@ -101,6 +101,7 @@ static const char * const uclient_http_prefix[] = {
 
 static int uclient_do_connect(struct uclient_http *uh, const char *port)
 {
+	socklen_t sl;
 	int fd;
 
 	if (uh->uc.url->port)
@@ -111,6 +112,14 @@ static int uclient_do_connect(struct uclient_http *uh, const char *port)
 		return -1;
 
 	ustream_fd_init(&uh->ufd, fd);
+
+	memset(&uh->uc.local_addr, 0, sizeof(uh->uc.local_addr));
+	memset(&uh->uc.remote_addr, 0, sizeof(uh->uc.remote_addr));
+
+	sl = sizeof(uh->uc.local_addr);
+	getsockname(fd, &uh->uc.local_addr.sa, &sl);
+	getpeername(fd, &uh->uc.remote_addr.sa, &sl);
+
 	return 0;
 }
 
@@ -503,7 +512,6 @@ uclient_http_send_headers(struct uclient_http *uh)
 static void uclient_http_headers_complete(struct uclient_http *uh)
 {
 	enum auth_type auth_type = uh->auth_type;
-	socklen_t sl;
 
 	uh->state = HTTP_STATE_RECV_DATA;
 	uh->uc.meta = uh->meta.head;
@@ -515,13 +523,6 @@ static void uclient_http_headers_complete(struct uclient_http *uh)
 		uh->state = HTTP_STATE_REQUEST_DONE;
 		return;
 	}
-
-	memset(&uh->uc.local_addr, 0, sizeof(uh->uc.local_addr));
-	memset(&uh->uc.remote_addr, 0, sizeof(uh->uc.remote_addr));
-
-	sl = sizeof(uh->uc.local_addr);
-	getsockname(uh->ufd.fd.fd, &uh->uc.local_addr.sa, &sl);
-	getpeername(uh->ufd.fd.fd, &uh->uc.remote_addr.sa, &sl);
 
 	if (uh->uc.cb->header_done)
 		uh->uc.cb->header_done(&uh->uc);
