@@ -77,26 +77,17 @@ static void msg_connecting(struct uclient *cl)
 	fprintf(stderr, "Connecting to %s %s:%d\n", cl->url->host, addr, port);
 }
 
-static void example_request_sm(struct uclient *cl)
+static void init_request(struct uclient *cl)
 {
-	static int i = 0;
+	uclient_connect(cl);
+	msg_connecting(cl);
+	uclient_http_set_request_type(cl, "GET");
+	uclient_request(cl);
+}
 
-	switch (i++) {
-	case 0:
-		uclient_connect(cl);
-		msg_connecting(cl);
-		uclient_http_set_request_type(cl, "HEAD");
-		uclient_request(cl);
-		break;
-	case 1:
-		uclient_connect(cl);
-		uclient_http_set_request_type(cl, "GET");
-		uclient_request(cl);
-		break;
-	default:
-		uloop_end();
-		break;
-	};
+static void request_done(struct uclient *cl)
+{
+	uloop_end();
 }
 
 static void example_eof(struct uclient *cl)
@@ -109,14 +100,15 @@ static void example_eof(struct uclient *cl)
 	}
 
 	retries = 0;
-	example_request_sm(cl);
+	request_done(cl);
 }
 
 static void example_error(struct uclient *cl, int code)
 {
 	if (!quiet)
 		fprintf(stderr, "Error %d!\n", code);
-	example_request_sm(cl);
+
+	request_done(cl);
 }
 
 static const struct uclient_cb cb = {
@@ -225,7 +217,7 @@ int main(int argc, char **argv)
 	if (ssl_ctx)
 		uclient_http_set_ssl_ctx(cl, ssl_ops, ssl_ctx, verify);
 
-	example_request_sm(cl);
+	init_request(cl);
 	uloop_run();
 	uloop_done();
 
