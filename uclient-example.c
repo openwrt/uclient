@@ -85,6 +85,10 @@ static int open_output_file(const char *path, bool create)
 
 static void request_done(struct uclient *cl)
 {
+	if (output_fd >= 0) {
+		close(output_fd);
+		output_fd = -1;
+	}
 	uclient_disconnect(cl);
 	uloop_end();
 }
