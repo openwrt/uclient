@@ -36,7 +36,7 @@ static struct ustream_ssl_ctx *ssl_ctx;
 static const struct ustream_ssl_ops *ssl_ops;
 static int quiet = false;
 static const char *output_file;
-static int output_fd;
+static int output_fd = -1;
 static int error_ret;
 
 static int open_output_file(const char *path, bool create)
@@ -83,26 +83,50 @@ static int open_output_file(const char *path, bool create)
 	return open(filename, flags, 0644);
 }
 
+static void request_done(struct uclient *cl)
+{
+	uclient_disconnect(cl);
+	uloop_end();
+}
+
 static void example_header_done(struct uclient *cl)
 {
+	static int retries;
+
 	struct blob_attr *cur;
 	int rem;
 
-	if (quiet)
-		return;
+	if (retries < 10 && uclient_http_redirect(cl)) {
+		if (!quiet)
+			fprintf(stderr, "Redirected to %s on %s\n", cl->url->location, cl->url->host);
 
-	printf("Headers (%d): \n", cl->status_code);
-	blobmsg_for_each_attr(cur, cl->meta, rem) {
-		printf("%s=%s\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
+		retries++;
+		return;
 	}
 
-	output_fd = open_output_file(cl->url->location, true);
-	if (output_fd < 0) {
-		if (!quiet)
-			perror("Cannot open output file");
-		error_ret = 3;
-		uclient_disconnect(cl);
-		uloop_end();
+	retries = 0;
+	if (!quiet) {
+		fprintf(stderr, "Headers (%d): \n", cl->status_code);
+		blobmsg_for_each_attr(cur, cl->meta, rem) {
+			fprintf(stderr, "%s=%s\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
+		}
+	}
+
+	switch (cl->status_code) {
+	case 204:
+	case 200:
+		output_fd = open_output_file(cl->url->location, true);
+		if (output_fd < 0) {
+			if (!quiet)
+				perror("Cannot open output file");
+			error_ret = 3;
+			request_done(cl);
+		}
+		break;
+
+	default:
+		request_done(cl);
+		break;
 	}
 }
 
@@ -111,7 +135,7 @@ static void example_read_data(struct uclient *cl)
 	char buf[256];
 	int len;
 
-	if (error_ret)
+	if (output_fd < 0)
 		return;
 
 	while (1) {
@@ -143,21 +167,8 @@ static void init_request(struct uclient *cl)
 	uclient_request(cl);
 }
 
-static void request_done(struct uclient *cl)
-{
-	uloop_end();
-}
-
 static void example_eof(struct uclient *cl)
 {
-	static int retries;
-
-	if (retries < 10 && uclient_http_redirect(cl)) {
-		retries++;
-		return;
-	}
-
-	retries = 0;
 	request_done(cl);
 }
 
