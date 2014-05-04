@@ -224,6 +224,7 @@ static int usage(const char *progname)
 	fprintf(stderr,
 		"Usage: %s [options] <URL>\n"
 		"Options:\n"
+		"	-q:                             Turn off status messages\n"
 		"	-O <file>:                      Redirect output to file (use \"-\" for stdout)\n"
 		"\n"
 		"HTTPS options:\n"
