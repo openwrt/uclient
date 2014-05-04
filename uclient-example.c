@@ -129,10 +129,12 @@ static const struct uclient_cb cb = {
 static int usage(const char *progname)
 {
 	fprintf(stderr,
-		"Usage: %s [options] <hostname> <port>\n"
+		"Usage: %s [options] <URL>\n"
 		"Options:\n"
-		"	-c <cert>:         Load CA certificates from file <cert>\n"
-		"	-C:                Skip certificate CN verification against hostname\n"
+		"\n"
+		"HTTPS options:\n"
+		"	--ca-certificate=<cert>:        Load CA certificates from file <cert>\n"
+		"	--no-check-certificate:         don't validate the server's certificate\n"
 		"\n", progname);
 	return 1;
 }
