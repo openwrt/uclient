@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <dlfcn.h>
 #include <getopt.h>
+#include <fcntl.h>
 
 #include <libubox/blobmsg.h>
 
@@ -34,6 +35,53 @@
 static struct ustream_ssl_ctx *ssl_ctx;
 static const struct ustream_ssl_ops *ssl_ops;
 static int quiet = false;
+static const char *output_file;
+static int output_fd;
+static int error_ret;
+
+static int open_output_file(const char *path, bool create)
+{
+	const char *str;
+	char *filename;
+	int len;
+	int flags = O_WRONLY;
+
+	if (create)
+		flags |= O_CREAT;
+
+	if (output_file) {
+		if (!strcmp(output_file, "-"))
+			return STDOUT_FILENO;
+
+		return open(output_file, flags, 0644);
+	}
+
+	/* Don't automatically overwrite files if the name is derived from the URL */
+	if (create)
+		flags |= O_EXCL;
+
+	len = strcspn(path, ";&");
+	while (len > 0 && path[len - 1] == '/')
+		len--;
+
+	for (str = path + len - 1; str >= path; str--) {
+		if (*str == '/')
+			break;
+	}
+
+	str++;
+	len -= str - path;
+
+	if (len > 0) {
+		filename = alloca(len + 1);
+		strncpy(filename, str, len);
+		filename[len] = 0;
+	} else {
+		filename = "index.html";
+	}
+
+	return open(filename, flags, 0644);
+}
 
 static void example_header_done(struct uclient *cl)
 {
@@ -48,7 +96,14 @@ static void example_header_done(struct uclient *cl)
 		printf("%s=%s\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
 	}
 
-	printf("Contents:\n");
+	output_fd = open_output_file(cl->url->location, true);
+	if (output_fd < 0) {
+		if (!quiet) {
+			perror("Cannot open output file");
+			error_ret = 3;
+			uloop_end();
+		}
+	}
 }
 
 static void example_read_data(struct uclient *cl)
@@ -56,12 +111,15 @@ static void example_read_data(struct uclient *cl)
 	char buf[256];
 	int len;
 
+	if (error_ret)
+		return;
+
 	while (1) {
 		len = uclient_read(cl, buf, sizeof(buf));
 		if (!len)
 			return;
 
-		write(STDOUT_FILENO, buf, len);
+		write(output_fd, buf, len);
 	}
 }
 
@@ -174,7 +232,7 @@ int main(int argc, char **argv)
 
 	init_ustream_ssl();
 
-	while ((ch = getopt_long(argc, argv, "q", longopts, &longopt_idx)) != -1) {
+	while ((ch = getopt_long(argc, argv, "qO:", longopts, &longopt_idx)) != -1) {
 		switch(ch) {
 		case 0:
 			switch (longopt_idx) {
@@ -188,6 +246,9 @@ int main(int argc, char **argv)
 			default:
 				return usage(progname);
 			}
+			break;
+		case 'O':
+			output_file = optarg;
 			break;
 		case 'q':
 			quiet = true;
@@ -226,5 +287,5 @@ int main(int argc, char **argv)
 	if (ssl_ctx)
 		ssl_ops->context_free(ssl_ctx);
 
-	return 0;
+	return error_ret;
 }
