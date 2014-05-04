@@ -35,6 +35,7 @@
 static struct ustream_ssl_ctx *ssl_ctx;
 static const struct ustream_ssl_ops *ssl_ops;
 static int quiet = false;
+static bool verify = true;
 static const char *output_file;
 static int output_fd = -1;
 static int error_ret;
@@ -177,19 +178,45 @@ static void example_eof(struct uclient *cl)
 	request_done(cl);
 }
 
-static void example_error(struct uclient *cl, int code)
+static void handle_uclient_error(struct uclient *cl, int code)
 {
-	if (!quiet)
-		fprintf(stderr, "Error %d!\n", code);
+	const char *type = "Unknown error";
+	bool ignore = false;
 
-	request_done(cl);
+	switch(code) {
+	case UCLIENT_ERROR_CONNECT:
+		type = "Connection failed";
+		error_ret = 4;
+		break;
+	case UCLIENT_ERROR_SSL_INVALID_CERT:
+		type = "Invalid SSL certificate";
+		ignore = !verify;
+		error_ret = 5;
+		break;
+	case UCLIENT_ERROR_SSL_CN_MISMATCH:
+		type = "Server hostname does not match SSL certificate";
+		ignore = !verify;
+		error_ret = 5;
+		break;
+	default:
+		error_ret = 1;
+		break;
+	}
+
+	if (!quiet)
+		fprintf(stderr, "Connection error: %s%s\n", type, ignore ? " (ignored)" : "");
+
+	if (ignore)
+		error_ret = 0;
+	else
+		request_done(cl);
 }
 
 static const struct uclient_cb cb = {
 	.header_done = example_header_done,
 	.data_read = example_read_data,
 	.data_eof = example_eof,
-	.error = example_error,
+	.error = handle_uclient_error,
 };
 
 static int usage(const char *progname)
@@ -243,7 +270,6 @@ int main(int argc, char **argv)
 {
 	const char *progname = argv[0];
 	struct uclient *cl;
-	bool verify = true;
 	int ch;
 	int longopt_idx = 0;
 
