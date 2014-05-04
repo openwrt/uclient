@@ -41,6 +41,17 @@ union uclient_addr {
 	struct sockaddr_in6 sin6;
 };
 
+struct uclient_url {
+	const struct uclient_backend *backend;
+	int prefix;
+
+	const char *host;
+	const char *port;
+	const char *location;
+
+	const char *auth;
+};
+
 struct uclient {
 	const struct uclient_backend *backend;
 	const struct uclient_cb *cb;

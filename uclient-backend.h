@@ -34,17 +34,6 @@ struct uclient_backend {
 	int (*write)(struct uclient *cl, char *buf, unsigned int len);
 };
 
-struct uclient_url {
-	const struct uclient_backend *backend;
-	int prefix;
-
-	const char *host;
-	const char *port;
-	const char *location;
-
-	const char *auth;
-};
-
 void uclient_backend_set_error(struct uclient *cl, int code);
 void uclient_backend_set_eof(struct uclient *cl);
 void uclient_backend_reset_state(struct uclient *cl);
