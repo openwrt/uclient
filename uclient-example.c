@@ -151,10 +151,13 @@ static int no_ssl(const char *progname)
 
 enum {
 	L_NO_CHECK_CERTIFICATE,
+	L_CA_CERTIFICATE,
 };
 
 static const struct option longopts[] = {
-	[L_NO_CHECK_CERTIFICATE] = { "no-check-certificate", no_argument }
+	[L_NO_CHECK_CERTIFICATE] = { "no-check-certificate", no_argument },
+	[L_CA_CERTIFICATE] = { "ca-certificate", required_argument },
+	{}
 };
 
 int main(int argc, char **argv)
@@ -167,19 +170,20 @@ int main(int argc, char **argv)
 
 	init_ustream_ssl();
 
-	while ((ch = getopt_long(argc, argv, "c:", longopts, &longopt_idx)) != -1) {
+	while ((ch = getopt_long(argc, argv, "", longopts, &longopt_idx)) != -1) {
 		switch(ch) {
 		case 0:
 			switch (longopt_idx) {
 			case L_NO_CHECK_CERTIFICATE:
 				verify = false;
 				break;
+			case L_CA_CERTIFICATE:
+				if (ssl_ctx)
+					ssl_ops->context_add_ca_crt_file(ssl_ctx, optarg);
+				break;
 			default:
 				return usage(progname);
 			}
-		case 'c':
-			if (ssl_ctx)
-				ssl_ops->context_add_ca_crt_file(ssl_ctx, optarg);
 			break;
 		default:
 			return usage(progname);
