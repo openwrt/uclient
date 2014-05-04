@@ -181,6 +181,7 @@ static int usage(const char *progname)
 	fprintf(stderr,
 		"Usage: %s [options] <URL>\n"
 		"Options:\n"
+		"	-O <file>:                      Redirect output to file (use \"-\" for stdout)\n"
 		"\n"
 		"HTTPS options:\n"
 		"	--ca-certificate=<cert>:        Load CA certificates from file <cert>\n"
