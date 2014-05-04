@@ -16,7 +16,7 @@ ADD_LIBRARY(uclient SHARED uclient.c uclient-http.c uclient-utils.c)
 TARGET_LINK_LIBRARIES(uclient ubox dl)
 
 ADD_EXECUTABLE(uclient-example uclient-example.c)
-TARGET_LINK_LIBRARIES(uclient-example uclient ustream-ssl)
+TARGET_LINK_LIBRARIES(uclient-example uclient)
 
 INSTALL(FILES uclient.h uclient-utils.h
 	DESTINATION include/libubox

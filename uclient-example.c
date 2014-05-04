@@ -18,11 +18,20 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <dlfcn.h>
 
 #include <libubox/blobmsg.h>
 
 #include "uclient.h"
 
+#ifdef __APPLE__
+#define LIB_EXT "dylib"
+#else
+#define LIB_EXT "so"
+#endif
+
+static struct ustream_ssl_ctx *ssl_ctx;
+static const struct ustream_ssl_ops *ssl_ops;
 
 static void example_header_done(struct uclient *cl)
 {
@@ -118,20 +127,42 @@ static int usage(const char *progname)
 }
 
 
+static void init_ustream_ssl(void)
+{
+	void *dlh;
+
+	dlh = dlopen("libustream-ssl." LIB_EXT, RTLD_LAZY | RTLD_LOCAL);
+	if (!dlh)
+		return;
+
+	ssl_ops = dlsym(dlh, "ustream_ssl_ops");
+	if (!ssl_ops)
+		return;
+
+	ssl_ctx = ssl_ops->context_new(false);
+}
+
+static int no_ssl(const char *progname)
+{
+	fprintf(stderr, "%s: SSL support not available, please install ustream-ssl\n", progname);
+	return 1;
+}
+
+
 int main(int argc, char **argv)
 {
-	struct ustream_ssl_ctx *ctx;
 	const char *progname = argv[0];
 	struct uclient *cl;
 	bool verify = true;
 	int ch;
 
-	ctx = ustream_ssl_context_new(false);
+	init_ustream_ssl();
 
 	while ((ch = getopt(argc, argv, "Cc:")) != -1) {
 		switch(ch) {
 		case 'c':
-			ustream_ssl_context_add_ca_crt_file(ctx, optarg);
+			if (ssl_ctx)
+				ssl_ops->context_add_ca_crt_file(ssl_ctx, optarg);
 			break;
 		case 'C':
 			verify = false;
@@ -147,6 +178,9 @@ int main(int argc, char **argv)
 	if (argc != 1)
 		return usage(progname);
 
+	if (!strncmp(argv[0], "https", 5) && !ssl_ctx)
+		return no_ssl(progname);
+
 	uloop_init();
 
 	cl = uclient_new(argv[0], NULL, &cb);
@@ -155,14 +189,17 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	uclient_http_set_ssl_ctx(cl, &ustream_ssl_ops, ctx, verify);
+	if (ssl_ctx)
+		uclient_http_set_ssl_ctx(cl, ssl_ops, ssl_ctx, verify);
+
 	example_request_sm(cl);
 	uloop_run();
 	uloop_done();
 
 	uclient_free(cl);
-	ustream_ssl_context_free(ctx);
 
+	if (ssl_ctx)
+		ssl_ops->context_free(ssl_ctx);
 
 	return 0;
 }
