@@ -98,11 +98,11 @@ static void example_header_done(struct uclient *cl)
 
 	output_fd = open_output_file(cl->url->location, true);
 	if (output_fd < 0) {
-		if (!quiet) {
+		if (!quiet)
 			perror("Cannot open output file");
-			error_ret = 3;
-			uloop_end();
-		}
+		error_ret = 3;
+		uclient_disconnect(cl);
+		uloop_end();
 	}
 }
 
