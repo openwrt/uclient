@@ -86,7 +86,7 @@ static int open_output_file(const char *path, bool create)
 
 static void request_done(struct uclient *cl)
 {
-	if (output_fd >= 0) {
+	if (output_fd >= 0 && !output_file) {
 		close(output_fd);
 		output_fd = -1;
 	}
@@ -326,6 +326,9 @@ int main(int argc, char **argv)
 	uloop_done();
 
 	uclient_free(cl);
+
+	if (output_fd >= 0 && output_fd != STDOUT_FILENO)
+		close(output_fd);
 
 	if (ssl_ctx)
 		ssl_ops->context_free(ssl_ctx);
