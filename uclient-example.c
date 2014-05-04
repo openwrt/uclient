@@ -130,6 +130,7 @@ static void example_header_done(struct uclient *cl)
 
 	default:
 		request_done(cl);
+		error_ret = 8;
 		break;
 	}
 }
