@@ -155,7 +155,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	uclient_http_set_ssl_ctx(cl, ctx, verify);
+	uclient_http_set_ssl_ctx(cl, &ustream_ssl_ops, ctx, verify);
 	example_request_sm(cl);
 	uloop_run();
 	uloop_done();

@@ -61,6 +61,7 @@ static const char * const request_types[__REQ_MAX] = {
 struct uclient_http {
 	struct uclient uc;
 
+	const struct ustream_ssl_ops *ssl_ops;
 	struct ustream_ssl_ctx *ssl_ctx;
 	struct ustream *us;
 
@@ -68,7 +69,6 @@ struct uclient_http {
 	struct ustream_ssl ussl;
 
 	bool ssl_require_validation;
-	bool ssl_ctx_ext;
 	bool ssl;
 	bool eof;
 	bool connection_close;
@@ -654,13 +654,15 @@ static int uclient_setup_http(struct uclient_http *uh)
 	int ret;
 
 	uh->us = us;
+	uh->ssl = false;
+
 	us->string_data = true;
 	us->notify_state = uclient_notify_state;
 	us->notify_read = uclient_notify_read;
 
 	ret = uclient_do_connect(uh, "80");
 	if (ret)
-		return ret;
+		return UCLIENT_ERROR_CONNECT;
 
 	return 0;
 }
@@ -715,12 +717,12 @@ static int uclient_setup_https(struct uclient_http *uh)
 	uh->ssl = true;
 	uh->us = us;
 
+	if (!uh->ssl_ctx)
+		return UCLIENT_ERROR_MISSING_SSL_CONTEXT;
+
 	ret = uclient_do_connect(uh, "443");
 	if (ret)
-		return ret;
-
-	if (!uh->ssl_ctx)
-		uh->ssl_ctx = ustream_ssl_context_new(false);
+		return UCLIENT_ERROR_CONNECT;
 
 	us->string_data = true;
 	us->notify_state = uclient_ssl_notify_state;
@@ -728,8 +730,8 @@ static int uclient_setup_https(struct uclient_http *uh)
 	uh->ussl.notify_error = uclient_ssl_notify_error;
 	uh->ussl.notify_verify_error = uclient_ssl_notify_verify_error;
 	uh->ussl.notify_connected = uclient_ssl_notify_connected;
-	ustream_ssl_init(&uh->ussl, &uh->ufd.stream, uh->ssl_ctx, false);
-	ustream_ssl_set_peer_cn(&uh->ussl, uh->uc.url->host);
+	uh->ssl_ops->init(&uh->ussl, &uh->ufd.stream, uh->ssl_ctx, false);
+	uh->ssl_ops->set_peer_cn(&uh->ussl, uh->uc.url->host);
 
 	return 0;
 }
@@ -751,9 +753,6 @@ static int uclient_http_connect(struct uclient *cl)
 	else
 		ret = uclient_setup_http(uh);
 
-	if (ret)
-		uclient_http_error(uh, UCLIENT_ERROR_CONNECT);
-
 	return ret;
 }
 
@@ -769,18 +768,16 @@ static struct uclient *uclient_http_alloc(void)
 
 static void uclient_http_free_ssl_ctx(struct uclient_http *uh)
 {
-	if (uh->ssl_ctx && !uh->ssl_ctx_ext)
-		ustream_ssl_context_free(uh->ssl_ctx);
-
-	uh->ssl_ctx_ext = false;
+	uh->ssl_ops = NULL;
+	uh->ssl_ctx = NULL;
 }
 
 static void uclient_http_free(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 
-	uclient_http_free_ssl_ctx(uh);
 	uclient_http_free_url_state(cl);
+	uclient_http_free_ssl_ctx(uh);
 	blob_buf_free(&uh->headers);
 	blob_buf_free(&uh->meta);
 	free(uh);
@@ -976,7 +973,8 @@ bool uclient_http_redirect(struct uclient *cl)
 	return true;
 }
 
-int uclient_http_set_ssl_ctx(struct uclient *cl, struct ustream_ssl_ctx *ctx, bool require_validation)
+int uclient_http_set_ssl_ctx(struct uclient *cl, const struct ustream_ssl_ops *ops,
+			     struct ustream_ssl_ctx *ctx, bool require_validation)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 
@@ -986,8 +984,8 @@ int uclient_http_set_ssl_ctx(struct uclient *cl, struct ustream_ssl_ctx *ctx, bo
 	uclient_http_free_url_state(cl);
 
 	uclient_http_free_ssl_ctx(uh);
+	uh->ssl_ops = ops;
 	uh->ssl_ctx = ctx;
-	uh->ssl_ctx_ext = !!ctx;
 	uh->ssl_require_validation = !!ctx && require_validation;
 
 	return 0;

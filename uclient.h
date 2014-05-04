@@ -32,6 +32,7 @@ enum uclient_error_code {
 	UCLIENT_ERROR_CONNECT,
 	UCLIENT_ERROR_SSL_INVALID_CERT,
 	UCLIENT_ERROR_SSL_CN_MISMATCH,
+	UCLIENT_ERROR_MISSING_SSL_CONTEXT,
 };
 
 union uclient_addr {
@@ -85,6 +86,7 @@ int uclient_http_set_header(struct uclient *cl, const char *name, const char *va
 int uclient_http_set_request_type(struct uclient *cl, const char *type);
 bool uclient_http_redirect(struct uclient *cl);
 
-int uclient_http_set_ssl_ctx(struct uclient *cl, struct ustream_ssl_ctx *ctx, bool require_validation);
+int uclient_http_set_ssl_ctx(struct uclient *cl, const struct ustream_ssl_ops *ops,
+			     struct ustream_ssl_ctx *ctx, bool require_validation);
 
 #endif
