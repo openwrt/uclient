@@ -33,19 +33,15 @@
 
 static struct ustream_ssl_ctx *ssl_ctx;
 static const struct ustream_ssl_ops *ssl_ops;
+static int quiet = false;
 
 static void example_header_done(struct uclient *cl)
 {
 	struct blob_attr *cur;
-	char local[INET6_ADDRSTRLEN], remote[INET6_ADDRSTRLEN];
-	int local_port, remote_port;
 	int rem;
 
-	uclient_get_addr(local, &local_port, &cl->local_addr);
-	uclient_get_addr(remote, &remote_port, &cl->remote_addr);
-
-	fprintf(stderr, "Connected: %s:%d -> %s:%d\n",
-		local, local_port, remote, remote_port);
+	if (quiet)
+		return;
 
 	printf("Headers (%d): \n", cl->status_code);
 	blobmsg_for_each_attr(cur, cl->meta, rem) {
@@ -69,6 +65,18 @@ static void example_read_data(struct uclient *cl)
 	}
 }
 
+static void msg_connecting(struct uclient *cl)
+{
+	char addr[INET6_ADDRSTRLEN];
+	int port;
+
+	if (quiet)
+		return;
+
+	uclient_get_addr(addr, &port, &cl->remote_addr);
+	fprintf(stderr, "Connecting to %s %s:%d\n", cl->url->host, addr, port);
+}
+
 static void example_request_sm(struct uclient *cl)
 {
 	static int i = 0;
@@ -76,6 +84,7 @@ static void example_request_sm(struct uclient *cl)
 	switch (i++) {
 	case 0:
 		uclient_connect(cl);
+		msg_connecting(cl);
 		uclient_http_set_request_type(cl, "HEAD");
 		uclient_request(cl);
 		break;
@@ -105,7 +114,8 @@ static void example_eof(struct uclient *cl)
 
 static void example_error(struct uclient *cl, int code)
 {
-	fprintf(stderr, "Error %d!\n", code);
+	if (!quiet)
+		fprintf(stderr, "Error %d!\n", code);
 	example_request_sm(cl);
 }
 
@@ -170,7 +180,7 @@ int main(int argc, char **argv)
 
 	init_ustream_ssl();
 
-	while ((ch = getopt_long(argc, argv, "", longopts, &longopt_idx)) != -1) {
+	while ((ch = getopt_long(argc, argv, "q", longopts, &longopt_idx)) != -1) {
 		switch(ch) {
 		case 0:
 			switch (longopt_idx) {
@@ -184,6 +194,9 @@ int main(int argc, char **argv)
 			default:
 				return usage(progname);
 			}
+			break;
+		case 'q':
+			quiet = true;
 			break;
 		default:
 			return usage(progname);
