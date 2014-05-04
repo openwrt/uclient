@@ -29,6 +29,7 @@ struct uclient_backend {
 
 	int (*connect)(struct uclient *cl);
 	int (*request)(struct uclient *cl);
+	void (*disconnect)(struct uclient *cl);
 
 	int (*read)(struct uclient *cl, char *buf, unsigned int len);
 	int (*write)(struct uclient *cl, char *buf, unsigned int len);

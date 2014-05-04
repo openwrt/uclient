@@ -223,6 +223,14 @@ int uclient_read(struct uclient *cl, char *buf, int len)
 	return cl->backend->read(cl, buf, len);
 }
 
+void uclient_disconnect(struct uclient *cl)
+{
+	if (!cl->backend->disconnect)
+		return;
+
+	cl->backend->disconnect(cl);
+}
+
 static void __uclient_backend_change_state(struct uloop_timeout *timeout)
 {
 	struct uclient *cl = container_of(timeout, struct uclient, timeout);

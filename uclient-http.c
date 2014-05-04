@@ -68,10 +68,13 @@ struct uclient_http {
 	struct ustream_fd ufd;
 	struct ustream_ssl ussl;
 
+	struct uloop_timeout disconnect_t;
+
 	bool ssl_require_validation;
 	bool ssl;
 	bool eof;
 	bool connection_close;
+	bool disconnect;
 	enum request_type req_type;
 	enum http_state state;
 
@@ -125,6 +128,7 @@ static int uclient_do_connect(struct uclient_http *uh, const char *port)
 
 static void uclient_http_disconnect(struct uclient_http *uh)
 {
+	uloop_timeout_cancel(&uh->disconnect_t);
 	if (!uh->us)
 		return;
 
@@ -157,6 +161,9 @@ static void uclient_notify_eof(struct uclient_http *uh)
 {
 	struct ustream *us = uh->us;
 
+	if (uh->disconnect)
+		return;
+
 	if (!uh->eof) {
 		if (!us->eof && !us->write_error)
 			return;
@@ -177,6 +184,7 @@ static void uclient_http_reset_state(struct uclient_http *uh)
 	uh->read_chunked = -1;
 	uh->content_length = -1;
 	uh->eof = false;
+	uh->disconnect = false;
 	uh->connection_close = false;
 	uh->state = HTTP_STATE_INIT;
 
@@ -527,6 +535,9 @@ static void uclient_http_headers_complete(struct uclient_http *uh)
 	if (uh->uc.cb->header_done)
 		uh->uc.cb->header_done(&uh->uc);
 
+	if (uh->eof)
+		return;
+
 	if (uh->req_type == REQ_HEAD || uh->uc.status_code == 204) {
 		uh->eof = true;
 		uclient_notify_eof(uh);
@@ -623,12 +634,18 @@ static void __uclient_notify_read(struct uclient_http *uh)
 			ustream_consume(uh->us, cur_len);
 			len -= cur_len;
 
+			if (uh->eof)
+				return;
+
 			data = ustream_get_read_buf(uh->us, &len);
 		} while (data && uh->state < HTTP_STATE_RECV_DATA);
 
 		if (!len)
 			return;
 	}
+
+	if (uh->eof)
+		return;
 
 	if (uh->state == HTTP_STATE_RECV_DATA && uc->cb->data_read)
 		uc->cb->data_read(uc);
@@ -756,11 +773,19 @@ static int uclient_http_connect(struct uclient *cl)
 	return ret;
 }
 
+static void uclient_http_disconnect_cb(struct uloop_timeout *timeout)
+{
+	struct uclient_http *uh = container_of(timeout, struct uclient_http, disconnect_t);
+
+	uclient_http_disconnect(uh);
+}
+
 static struct uclient *uclient_http_alloc(void)
 {
 	struct uclient_http *uh;
 
 	uh = calloc_a(sizeof(*uh));
+	uh->disconnect_t.cb = uclient_http_disconnect_cb;
 	blob_buf_init(&uh->headers, 0);
 
 	return &uh->uc;
@@ -991,12 +1016,25 @@ int uclient_http_set_ssl_ctx(struct uclient *cl, const struct ustream_ssl_ops *o
 	return 0;
 }
 
+static void uclient_http_request_disconnect(struct uclient *cl)
+{
+	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+
+	if (!uh->us)
+		return;
+
+	uh->eof = true;
+	uh->disconnect = true;
+	uloop_timeout_set(&uh->disconnect_t, 1);
+}
+
 const struct uclient_backend uclient_backend_http = {
 	.prefix = uclient_http_prefix,
 
 	.alloc = uclient_http_alloc,
 	.free = uclient_http_free,
 	.connect = uclient_http_connect,
+	.disconnect = uclient_http_request_disconnect,
 	.update_url = uclient_http_free_url_state,
 
 	.read = uclient_http_read,

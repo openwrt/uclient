@@ -82,6 +82,7 @@ void uclient_free(struct uclient *cl);
 
 int uclient_set_url(struct uclient *cl, const char *url, const char *auth);
 int uclient_connect(struct uclient *cl);
+void uclient_disconnect(struct uclient *cl);
 
 int uclient_read(struct uclient *cl, char *buf, int len);
 int uclient_write(struct uclient *cl, char *buf, int len);
