@@ -40,6 +40,7 @@ enum request_type {
 	REQ_GET,
 	REQ_HEAD,
 	REQ_POST,
+	REQ_PUT,
 	__REQ_MAX
 };
 
@@ -56,6 +57,7 @@ static const char * const request_types[__REQ_MAX] = {
 	[REQ_GET] = "GET",
 	[REQ_HEAD] = "HEAD",
 	[REQ_POST] = "POST",
+	[REQ_PUT] = "PUT",
 };
 
 struct uclient_http {
@@ -507,7 +509,7 @@ uclient_http_send_headers(struct uclient_http *uh)
 	blobmsg_for_each_attr(cur, uh->headers.head, rem)
 		ustream_printf(uh->us, "%s: %s\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
 
-	if (uh->req_type == REQ_POST)
+	if (uh->req_type == REQ_POST || uh->req_type == REQ_PUT)
 		ustream_printf(uh->us, "Transfer-Encoding: chunked\r\n");
 
 	uclient_http_add_auth_header(uh);
@@ -884,7 +886,7 @@ uclient_http_request_done(struct uclient *cl)
 		return -1;
 
 	uclient_http_send_headers(uh);
-	if (uh->req_type == REQ_POST)
+	if (uh->req_type == REQ_POST || uh->req_type == REQ_PUT)
 		ustream_printf(uh->us, "0\r\n\r\n");
 	uh->state = HTTP_STATE_REQUEST_DONE;
 
