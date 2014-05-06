@@ -160,3 +160,25 @@ void http_digest_calculate_response(char *dest, const struct http_digest_data *d
 	http_create_hash(dest, h_a2_strings, ARRAY_SIZE(h_a2_strings));
 	http_create_hash(dest, resp_strings, ARRAY_SIZE(resp_strings));
 }
+
+char *uclient_get_url_filename(const char *url, const char *default_name)
+{
+	const char *str;
+	int len = strcspn(url, ";&");
+
+	while (len > 0 && url[len - 1] == '/')
+		len--;
+
+	for (str = url + len - 1; str >= url; str--) {
+		if (*str == '/')
+			break;
+	}
+
+	str++;
+	len -= str - url;
+
+	if (len > 0)
+		return strncpy(calloc(1, len + 1), str, len);
+
+	return strdup(default_name);
+}

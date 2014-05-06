@@ -25,6 +25,7 @@
 #include <libubox/blobmsg.h>
 
 #include "uclient.h"
+#include "uclient-utils.h"
 
 #ifdef __APPLE__
 #define LIB_EXT "dylib"
@@ -42,10 +43,9 @@ static int error_ret;
 
 static int open_output_file(const char *path, bool create)
 {
-	const char *str;
 	char *filename;
-	int len;
 	int flags = O_WRONLY;
+	int ret;
 
 	if (create)
 		flags |= O_CREAT;
@@ -61,27 +61,11 @@ static int open_output_file(const char *path, bool create)
 	if (create)
 		flags |= O_EXCL;
 
-	len = strcspn(path, ";&");
-	while (len > 0 && path[len - 1] == '/')
-		len--;
+	filename = uclient_get_url_filename(path, "index.html");
+	ret = open(filename, flags, 0644);
+	free(filename);
 
-	for (str = path + len - 1; str >= path; str--) {
-		if (*str == '/')
-			break;
-	}
-
-	str++;
-	len -= str - path;
-
-	if (len > 0) {
-		filename = alloca(len + 1);
-		strncpy(filename, str, len);
-		filename[len] = 0;
-	} else {
-		filename = "index.html";
-	}
-
-	return open(filename, flags, 0644);
+	return ret;
 }
 
 static void request_done(struct uclient *cl)

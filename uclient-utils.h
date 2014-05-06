@@ -44,4 +44,6 @@ int uclient_urldecode(const char *in, char *out, bool decode_plus);
 void http_digest_calculate_auth_hash(char *dest, const char *user, const char *realm, const char *password);
 void http_digest_calculate_response(char *dest, const struct http_digest_data *data);
 
+char *uclient_get_url_filename(const char *url, const char *default_name);
+
 #endif
