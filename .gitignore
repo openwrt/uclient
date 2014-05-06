@@ -6,4 +6,4 @@ CMakeFiles
 *.so
 *.dylib
 install_manifest.txt
-uclient-example
+uclient-fetch
