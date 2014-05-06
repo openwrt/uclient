@@ -94,7 +94,7 @@ static void request_done(struct uclient *cl)
 	uloop_end();
 }
 
-static void example_header_done(struct uclient *cl)
+static void header_done_cb(struct uclient *cl)
 {
 	static int retries;
 
@@ -136,7 +136,7 @@ static void example_header_done(struct uclient *cl)
 	}
 }
 
-static void example_read_data(struct uclient *cl)
+static void read_data_cb(struct uclient *cl)
 {
 	char buf[256];
 	int len;
@@ -173,7 +173,7 @@ static void init_request(struct uclient *cl)
 	uclient_request(cl);
 }
 
-static void example_eof(struct uclient *cl)
+static void eof_cb(struct uclient *cl)
 {
 	request_done(cl);
 }
@@ -213,9 +213,9 @@ static void handle_uclient_error(struct uclient *cl, int code)
 }
 
 static const struct uclient_cb cb = {
-	.header_done = example_header_done,
-	.data_read = example_read_data,
-	.data_eof = example_eof,
+	.header_done = header_done_cb,
+	.data_read = read_data_cb,
+	.data_eof = eof_cb,
 	.error = handle_uclient_error,
 };
 
