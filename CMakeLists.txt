@@ -21,6 +21,7 @@ TARGET_LINK_LIBRARIES(uclient-fetch uclient)
 INSTALL(FILES uclient.h uclient-utils.h
 	DESTINATION include/libubox
 )
-INSTALL(TARGETS uclient
+INSTALL(TARGETS uclient uclient-fetch
 	LIBRARY DESTINATION lib
+	RUNTIME DESTINATION bin
 )

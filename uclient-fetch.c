@@ -98,9 +98,6 @@ static void header_done_cb(struct uclient *cl)
 {
 	static int retries;
 
-	struct blob_attr *cur;
-	int rem;
-
 	if (retries < 10 && uclient_http_redirect(cl)) {
 		if (!quiet)
 			fprintf(stderr, "Redirected to %s on %s\n", cl->url->location, cl->url->host);
@@ -110,13 +107,6 @@ static void header_done_cb(struct uclient *cl)
 	}
 
 	retries = 0;
-	if (!quiet) {
-		fprintf(stderr, "Headers (%d): \n", cl->status_code);
-		blobmsg_for_each_attr(cur, cl->meta, rem) {
-			fprintf(stderr, "%s=%s\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
-		}
-	}
-
 	switch (cl->status_code) {
 	case 204:
 	case 200:
