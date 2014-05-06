@@ -120,6 +120,8 @@ static void header_done_cb(struct uclient *cl)
 		break;
 
 	default:
+		if (!quiet)
+			fprintf(stderr, "HTTP error %d\n", cl->status_code);
 		request_done(cl);
 		error_ret = 8;
 		break;
