@@ -928,8 +928,10 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 		read_len += sep + 2 - data;
 		data = sep + 2;
 
-		if (!uh->read_chunked)
+		if (!uh->read_chunked) {
 			uh->eof = true;
+			uh->uc.data_eof = true;
+		}
 	}
 
 	if (len > data_end - data)
@@ -945,8 +947,10 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 			len = uh->content_length;
 
 		uh->content_length -= len;
-		if (!uh->content_length)
+		if (!uh->content_length) {
 			uh->eof = true;
+			uh->uc.data_eof = true;
+		}
 	}
 
 	if (len > 0) {

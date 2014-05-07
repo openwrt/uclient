@@ -151,6 +151,11 @@ static void init_request(struct uclient *cl)
 
 static void eof_cb(struct uclient *cl)
 {
+	if (!cl->data_eof) {
+		if (!quiet)
+			fprintf(stderr, "Connection reset prematurely\n");
+		error_ret = 4;
+	}
 	request_done(cl);
 }
 

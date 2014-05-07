@@ -62,6 +62,7 @@ struct uclient {
 	void *priv;
 
 	bool eof;
+	bool data_eof;
 	int error_code;
 	int status_code;
 	struct blob_attr *meta;

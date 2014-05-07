@@ -267,6 +267,7 @@ void __hidden uclient_backend_set_eof(struct uclient *cl)
 
 void __hidden uclient_backend_reset_state(struct uclient *cl)
 {
+	cl->data_eof = false;
 	cl->eof = false;
 	cl->error_code = 0;
 	uloop_timeout_cancel(&cl->timeout);
