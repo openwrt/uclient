@@ -40,6 +40,7 @@ static bool verify = true;
 static const char *output_file;
 static int output_fd = -1;
 static int error_ret;
+static int out_bytes;
 
 static int open_output_file(const char *path, bool create)
 {
@@ -54,6 +55,9 @@ static int open_output_file(const char *path, bool create)
 		if (!strcmp(output_file, "-"))
 			return STDOUT_FILENO;
 
+		if (!quiet)
+			fprintf(stderr, "Writing to stdout\n");
+
 		return open(output_file, flags, 0644);
 	}
 
@@ -62,6 +66,8 @@ static int open_output_file(const char *path, bool create)
 		flags |= O_EXCL;
 
 	filename = uclient_get_url_filename(path, "index.html");
+	if (!quiet)
+		fprintf(stderr, "Writing to '%s'\n", filename);
 	ret = open(filename, flags, 0644);
 	free(filename);
 
@@ -125,6 +131,7 @@ static void read_data_cb(struct uclient *cl)
 		if (!len)
 			return;
 
+		out_bytes += len;
 		write(output_fd, buf, len);
 	}
 }
@@ -143,6 +150,7 @@ static void msg_connecting(struct uclient *cl)
 
 static void init_request(struct uclient *cl)
 {
+	out_bytes = 0;
 	uclient_connect(cl);
 	msg_connecting(cl);
 	uclient_http_set_request_type(cl, "GET");
@@ -155,6 +163,8 @@ static void eof_cb(struct uclient *cl)
 		if (!quiet)
 			fprintf(stderr, "Connection reset prematurely\n");
 		error_ret = 4;
+	} else if (!quiet) {
+		fprintf(stderr, "Download completed (%d bytes)\n", out_bytes);
 	}
 	request_done(cl);
 }
