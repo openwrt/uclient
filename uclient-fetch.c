@@ -41,6 +41,9 @@ static const char *output_file;
 static int output_fd = -1;
 static int error_ret;
 static int out_bytes;
+static char *username;
+static char *password;
+static char *auth_str;
 
 static int open_output_file(const char *path, bool create)
 {
@@ -247,11 +250,15 @@ static int no_ssl(const char *progname)
 enum {
 	L_NO_CHECK_CERTIFICATE,
 	L_CA_CERTIFICATE,
+	L_USER,
+	L_PASSWORD,
 };
 
 static const struct option longopts[] = {
 	[L_NO_CHECK_CERTIFICATE] = { "no-check-certificate", no_argument },
 	[L_CA_CERTIFICATE] = { "ca-certificate", required_argument },
+	[L_USER] = { "user", required_argument },
+	[L_PASSWORD] = { "password", required_argument },
 	{}
 };
 
@@ -274,6 +281,18 @@ int main(int argc, char **argv)
 			case L_CA_CERTIFICATE:
 				if (ssl_ctx)
 					ssl_ops->context_add_ca_crt_file(ssl_ctx, optarg);
+				break;
+			case L_USER:
+				if (!strlen(optarg))
+					break;
+				username = strdup(optarg);
+				memset(optarg, '*', strlen(optarg));
+				break;
+			case L_PASSWORD:
+				if (!strlen(optarg))
+					break;
+				password = strdup(optarg);
+				memset(optarg, '*', strlen(optarg));
 				break;
 			default:
 				return usage(progname);
@@ -301,7 +320,14 @@ int main(int argc, char **argv)
 
 	uloop_init();
 
-	cl = uclient_new(argv[0], NULL, &cb);
+	if (username) {
+		if (password)
+			asprintf(&auth_str, "%s:%s", username, password);
+		else
+			auth_str = username;
+	}
+
+	cl = uclient_new(argv[0], auth_str, &cb);
 	if (!cl) {
 		fprintf(stderr, "Failed to allocate uclient context\n");
 		return 1;
