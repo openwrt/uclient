@@ -49,7 +49,7 @@ static int open_output_file(const char *path, bool create)
 	int ret;
 
 	if (create)
-		flags |= O_CREAT;
+		flags |= O_CREAT | O_EXCL;
 
 	if (output_file) {
 		if (!strcmp(output_file, "-"))
@@ -58,12 +58,9 @@ static int open_output_file(const char *path, bool create)
 		if (!quiet)
 			fprintf(stderr, "Writing to stdout\n");
 
+		unlink(output_file);
 		return open(output_file, flags, 0644);
 	}
-
-	/* Don't automatically overwrite files if the name is derived from the URL */
-	if (create)
-		flags |= O_EXCL;
 
 	filename = uclient_get_url_filename(path, "index.html");
 	if (!quiet)
