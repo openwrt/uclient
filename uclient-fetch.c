@@ -145,7 +145,7 @@ static void msg_connecting(struct uclient *cl)
 		return;
 
 	uclient_get_addr(addr, &port, &cl->remote_addr);
-	fprintf(stderr, "Connecting to %s %s:%d\n", cl->url->host, addr, port);
+	fprintf(stderr, "Connecting to %s:%d\n", addr, port);
 }
 
 static void init_request(struct uclient *cl)
@@ -326,6 +326,9 @@ int main(int argc, char **argv)
 		else
 			auth_str = username;
 	}
+
+	if (!quiet)
+		fprintf(stderr, "Downloading '%s'\n", argv[0]);
 
 	cl = uclient_new(argv[0], auth_str, &cb);
 	if (!cl) {
