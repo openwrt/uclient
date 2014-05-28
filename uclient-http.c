@@ -497,9 +497,6 @@ uclient_http_send_headers(struct uclient_http *uh)
 	if (uh->state >= HTTP_STATE_HEADERS_SENT)
 		return;
 
-	if (uh->auth_type == AUTH_TYPE_UNKNOWN)
-		req_type = REQ_HEAD;
-
 	ustream_printf(uh->us,
 		"%s %s HTTP/1.1\r\n"
 		"Host: %s\r\n",
@@ -527,7 +524,8 @@ static void uclient_http_headers_complete(struct uclient_http *uh)
 	uh->uc.meta = uh->meta.head;
 	uclient_http_process_headers(uh);
 
-	if (auth_type == AUTH_TYPE_UNKNOWN) {
+	if (auth_type == AUTH_TYPE_UNKNOWN && uh->uc.status_code == 401 &&
+	    (uh->req_type == REQ_HEAD || uh->req_type == REQ_GET)) {
 		uclient_http_init_request(uh);
 		uclient_http_send_headers(uh);
 		uh->state = HTTP_STATE_REQUEST_DONE;
