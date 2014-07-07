@@ -651,11 +651,24 @@ static void __uclient_notify_read(struct uclient_http *uh)
 		uc->cb->data_read(uc);
 }
 
+static void __uclient_notify_write(struct uclient_http *uh)
+{
+	struct uclient *uc = &uh->uc;
+	uc->cb->data_sent(uc);
+}
+
 static void uclient_notify_read(struct ustream *us, int bytes)
 {
 	struct uclient_http *uh = container_of(us, struct uclient_http, ufd.stream);
 
 	__uclient_notify_read(uh);
+}
+
+static void uclient_notify_write(struct ustream *us, int bytes)
+{
+	struct uclient_http *uh = container_of(us, struct uclient_http, ufd.stream);
+
+	__uclient_notify_write(uh);
 }
 
 static void uclient_notify_state(struct ustream *us)
@@ -676,6 +689,7 @@ static int uclient_setup_http(struct uclient_http *uh)
 	us->string_data = true;
 	us->notify_state = uclient_notify_state;
 	us->notify_read = uclient_notify_read;
+	us->notify_write = uclient_notify_write;
 
 	ret = uclient_do_connect(uh, "80");
 	if (ret)
@@ -689,6 +703,13 @@ static void uclient_ssl_notify_read(struct ustream *us, int bytes)
 	struct uclient_http *uh = container_of(us, struct uclient_http, ussl.stream);
 
 	__uclient_notify_read(uh);
+}
+
+static void uclient_ssl_notify_write(struct ustream *us, int bytes)
+{
+	struct uclient_http *uh = container_of(us, struct uclient_http, ussl.stream);
+
+	__uclient_notify_write(uh);
 }
 
 static void uclient_ssl_notify_state(struct ustream *us)
@@ -744,6 +765,7 @@ static int uclient_setup_https(struct uclient_http *uh)
 	us->string_data = true;
 	us->notify_state = uclient_ssl_notify_state;
 	us->notify_read = uclient_ssl_notify_read;
+	us->notify_write = uclient_ssl_notify_write;
 	uh->ussl.notify_error = uclient_ssl_notify_error;
 	uh->ussl.notify_verify_error = uclient_ssl_notify_verify_error;
 	uh->ussl.notify_connected = uclient_ssl_notify_connected;
