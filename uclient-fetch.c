@@ -149,13 +149,27 @@ static void msg_connecting(struct uclient *cl)
 	fprintf(stderr, "Connecting to %s:%d\n", addr, port);
 }
 
-static void init_request(struct uclient *cl)
+static int init_request(struct uclient *cl)
 {
+	int rc;
+
 	out_bytes = 0;
-	uclient_connect(cl);
+
+	rc = uclient_connect(cl);
+	if (rc)
+		return rc;
+
 	msg_connecting(cl);
-	uclient_http_set_request_type(cl, "GET");
-	uclient_request(cl);
+
+	rc = uclient_http_set_request_type(cl, "GET");
+	if (rc)
+		return rc;
+
+	rc = uclient_request(cl);
+	if (rc)
+		return rc;
+
+	return 0;
 }
 
 static void eof_cb(struct uclient *cl)
@@ -269,6 +283,7 @@ int main(int argc, char **argv)
 	struct uclient *cl;
 	int ch;
 	int longopt_idx = 0;
+	int rc;
 
 	init_ustream_ssl();
 
@@ -340,8 +355,15 @@ int main(int argc, char **argv)
 	if (ssl_ctx)
 		uclient_http_set_ssl_ctx(cl, ssl_ops, ssl_ctx, verify);
 
-	init_request(cl);
-	uloop_run();
+	rc = init_request(cl);
+	if (!rc) {
+		/* no error received, we can enter main loop */
+		uloop_run();
+	} else {
+		fprintf(stderr, "Failed to establish connection\n");
+		error_ret = 4;
+	}
+
 	uloop_done();
 
 	uclient_free(cl);
