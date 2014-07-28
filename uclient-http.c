@@ -657,7 +657,9 @@ static void __uclient_notify_read(struct uclient_http *uh)
 static void __uclient_notify_write(struct uclient_http *uh)
 {
 	struct uclient *uc = &uh->uc;
-	uc->cb->data_sent(uc);
+
+	if (uc->cb->data_sent)
+		uc->cb->data_sent(uc);
 }
 
 static void uclient_notify_read(struct ustream *us, int bytes)
