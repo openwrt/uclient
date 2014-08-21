@@ -552,6 +552,9 @@ static void uclient_parse_http_line(struct uclient_http *uh, char *data)
 	if (uh->state == HTTP_STATE_REQUEST_DONE) {
 		char *code;
 
+		if (!strlen(data))
+			return;
+
 		/* HTTP/1.1 */
 		strsep(&data, " ");
 
