@@ -797,6 +797,9 @@ static int uclient_http_connect(struct uclient *cl)
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 	int ret;
 
+	if (!cl->eof || uh->disconnect)
+		uclient_http_disconnect(uh);
+
 	uclient_http_init_request(uh);
 
 	if (uh->us)
