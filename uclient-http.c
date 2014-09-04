@@ -159,6 +159,18 @@ static void uclient_http_error(struct uclient_http *uh, int code)
 	uclient_backend_set_error(&uh->uc, code);
 }
 
+static void uclient_http_request_disconnect(struct uclient *cl)
+{
+	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+
+	if (!uh->us)
+		return;
+
+	uh->eof = true;
+	uh->disconnect = true;
+	uloop_timeout_set(&uh->disconnect_t, 1);
+}
+
 static void uclient_notify_eof(struct uclient_http *uh)
 {
 	struct ustream *us = uh->us;
@@ -177,7 +189,7 @@ static void uclient_notify_eof(struct uclient_http *uh)
 	uclient_backend_set_eof(&uh->uc);
 
 	if (uh->connection_close)
-		uclient_http_disconnect(uh);
+		uclient_http_request_disconnect(&uh->uc);
 }
 
 static void uclient_http_reset_state(struct uclient_http *uh)
@@ -1045,18 +1057,6 @@ int uclient_http_set_ssl_ctx(struct uclient *cl, const struct ustream_ssl_ops *o
 	uh->ssl_require_validation = !!ctx && require_validation;
 
 	return 0;
-}
-
-static void uclient_http_request_disconnect(struct uclient *cl)
-{
-	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
-
-	if (!uh->us)
-		return;
-
-	uh->eof = true;
-	uh->disconnect = true;
-	uloop_timeout_set(&uh->disconnect_t, 1);
 }
 
 const struct uclient_backend uclient_backend_http = {
