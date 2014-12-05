@@ -319,6 +319,22 @@ static char *digest_unquote_sep(char **str)
 	return start;
 }
 
+static char *digest_sep(char **str)
+{
+	char *cur, *next;
+
+	cur = *str;
+	next = strchr(*str, ',');
+	if (next) {
+	    *str = next + 1;
+	    *next = 0;
+	} else {
+	    *str += strlen(*str);
+	}
+
+	return cur;
+}
+
 static bool strmatch(char **str, const char *prefix)
 {
 	int len = strlen(prefix);
@@ -413,8 +429,9 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 	next = buf;
 	while (*next) {
 		const char **dest = NULL;
+		const char *tmp;
 
-		while (isspace(*next))
+		while (*next && isspace(*next))
 			next++;
 
 		if (strmatch(&next, "realm"))
@@ -425,8 +442,18 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 			dest = &data.nonce;
 		else if (strmatch(&next, "opaque"))
 			dest = &opaque;
-		else
-			return;
+		else if (strmatch(&next, "stale") ||
+			 strmatch(&next, "algorithm") ||
+			 strmatch(&next, "auth-param")) {
+			digest_sep(&next);
+			continue;
+		} else if (strmatch(&next, "domain") ||
+			 strmatch(&next, "qop-options"))
+			dest = &tmp;
+		else {
+			digest_sep(&next);
+			continue;
+		}
 
 		*dest = digest_unquote_sep(&next);
 	}
