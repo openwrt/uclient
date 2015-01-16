@@ -141,6 +141,16 @@ free:
 	return NULL;
 }
 
+static void uclient_connection_timeout(struct uloop_timeout *timeout)
+{
+	struct uclient *cl = container_of(timeout, struct uclient, connection_timeout);
+
+	if (cl->backend->disconnect)
+		cl->backend->disconnect(cl);
+
+	uclient_backend_set_error(cl, UCLIENT_ERROR_TIMEDOUT);
+}
+
 struct uclient *uclient_new(const char *url_str, const char *auth_str, const struct uclient_cb *cb)
 {
 	struct uclient *cl;
@@ -157,6 +167,8 @@ struct uclient *uclient_new(const char *url_str, const char *auth_str, const str
 	cl->backend = url->backend;
 	cl->cb = cb;
 	cl->url = url;
+	cl->timeout_msecs = UCLIENT_DEFAULT_TIMEOUT_MS;
+	cl->connection_timeout.cb = uclient_connection_timeout;
 
 	return cl;
 }
@@ -178,6 +190,16 @@ int uclient_set_url(struct uclient *cl, const char *url_str, const char *auth_st
 
 	if (backend->update_url)
 		backend->update_url(cl);
+
+	return 0;
+}
+
+int uclient_set_timeout(struct uclient *cl, int msecs)
+{
+	if (msecs <= 0)
+		return -EINVAL;
+
+	cl->timeout_msecs = msecs;
 
 	return 0;
 }
@@ -209,10 +231,18 @@ int uclient_write(struct uclient *cl, char *buf, int len)
 
 int uclient_request(struct uclient *cl)
 {
+	int err;
+
 	if (!cl->backend->request)
 		return -1;
 
-	return cl->backend->request(cl);
+	err = cl->backend->request(cl);
+	if (err)
+		return err;
+
+	uloop_timeout_set(&cl->connection_timeout, cl->timeout_msecs);
+
+	return 0;
 }
 
 int uclient_read(struct uclient *cl, char *buf, int len)
@@ -225,6 +255,8 @@ int uclient_read(struct uclient *cl, char *buf, int len)
 
 void uclient_disconnect(struct uclient *cl)
 {
+	uloop_timeout_cancel(&cl->connection_timeout);
+
 	if (!cl->backend->disconnect)
 		return;
 
@@ -252,6 +284,7 @@ void __hidden uclient_backend_set_error(struct uclient *cl, int code)
 	if (cl->error_code)
 		return;
 
+	uloop_timeout_cancel(&cl->connection_timeout);
 	cl->error_code = code;
 	uclient_backend_change_state(cl);
 }
@@ -261,6 +294,7 @@ void __hidden uclient_backend_set_eof(struct uclient *cl)
 	if (cl->eof || cl->error_code)
 		return;
 
+	uloop_timeout_cancel(&cl->connection_timeout);
 	cl->eof = true;
 	uclient_backend_change_state(cl);
 }

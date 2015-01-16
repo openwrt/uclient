@@ -689,8 +689,13 @@ static void __uclient_notify_read(struct uclient_http *uh)
 	if (uh->eof)
 		return;
 
-	if (uh->state == HTTP_STATE_RECV_DATA && uc->cb->data_read)
-		uc->cb->data_read(uc);
+	if (uh->state == HTTP_STATE_RECV_DATA) {
+		/* Now it's uclient user turn to read some data */
+		uloop_timeout_cancel(&uc->connection_timeout);
+
+		if (uc->cb->data_read)
+			uc->cb->data_read(uc);
+	}
 }
 
 static void __uclient_notify_write(struct uclient_http *uh)
@@ -1029,6 +1034,10 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 		ustream_consume(uh->us, read_len);
 
 	uclient_notify_eof(uh);
+
+	/* Now that we consumed something and if this isn't EOF, start timer again */
+	if (!uh->uc.eof && !cl->connection_timeout.pending)
+		uloop_timeout_set(&cl->connection_timeout, cl->timeout_msecs);
 
 	return len;
 }

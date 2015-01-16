@@ -194,6 +194,10 @@ static void handle_uclient_error(struct uclient *cl, int code)
 		type = "Connection failed";
 		error_ret = 4;
 		break;
+	case UCLIENT_ERROR_TIMEDOUT:
+		type = "Connection timed out";
+		error_ret = 4;
+		break;
 	case UCLIENT_ERROR_SSL_INVALID_CERT:
 		type = "Invalid SSL certificate";
 		ignore = !verify;
