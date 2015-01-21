@@ -931,7 +931,7 @@ uclient_http_set_header(struct uclient *cl, const char *name, const char *value)
 }
 
 static int
-uclient_http_send_data(struct uclient *cl, char *buf, unsigned int len)
+uclient_http_send_data(struct uclient *cl, const char *buf, unsigned int len)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 

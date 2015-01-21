@@ -32,7 +32,7 @@ struct uclient_backend {
 	void (*disconnect)(struct uclient *cl);
 
 	int (*read)(struct uclient *cl, char *buf, unsigned int len);
-	int (*write)(struct uclient *cl, char *buf, unsigned int len);
+	int (*write)(struct uclient *cl, const char *buf, unsigned int len);
 };
 
 void uclient_backend_set_error(struct uclient *cl, int code);

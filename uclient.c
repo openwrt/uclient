@@ -221,7 +221,7 @@ void uclient_free(struct uclient *cl)
 	free(url);
 }
 
-int uclient_write(struct uclient *cl, char *buf, int len)
+int uclient_write(struct uclient *cl, const char *buf, int len)
 {
 	if (!cl->backend->write)
 		return -1;

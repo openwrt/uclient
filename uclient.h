@@ -106,7 +106,7 @@ int uclient_connect(struct uclient *cl);
 void uclient_disconnect(struct uclient *cl);
 
 int uclient_read(struct uclient *cl, char *buf, int len);
-int uclient_write(struct uclient *cl, char *buf, int len);
+int uclient_write(struct uclient *cl, const char *buf, int len);
 int uclient_request(struct uclient *cl);
 
 char *uclient_get_addr(char *dest, int *port, union uclient_addr *a);
