@@ -41,6 +41,7 @@ enum request_type {
 	REQ_HEAD,
 	REQ_POST,
 	REQ_PUT,
+	REQ_DELETE,
 	__REQ_MAX
 };
 
@@ -58,6 +59,7 @@ static const char * const request_types[__REQ_MAX] = {
 	[REQ_HEAD] = "HEAD",
 	[REQ_POST] = "POST",
 	[REQ_PUT] = "PUT",
+	[REQ_DELETE] = "DELETE",
 };
 
 struct uclient_http {
