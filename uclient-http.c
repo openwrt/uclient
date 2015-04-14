@@ -547,7 +547,7 @@ uclient_http_send_headers(struct uclient_http *uh)
 		url->location, url->host);
 
 	blobmsg_for_each_attr(cur, uh->headers.head, rem)
-		ustream_printf(uh->us, "%s: %s\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
+		ustream_printf(uh->us, "%s: %s\r\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
 
 	if (uh->req_type == REQ_POST || uh->req_type == REQ_PUT)
 		ustream_printf(uh->us, "Transfer-Encoding: chunked\r\n");
