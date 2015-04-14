@@ -73,6 +73,7 @@ struct uclient_http {
 	struct ustream_ssl ussl;
 
 	struct uloop_timeout disconnect_t;
+	unsigned int seq;
 
 	bool ssl_require_validation;
 	bool ssl;
@@ -196,6 +197,7 @@ static void uclient_notify_eof(struct uclient_http *uh)
 
 static void uclient_http_reset_state(struct uclient_http *uh)
 {
+	uh->seq++;
 	uclient_backend_reset_state(&uh->uc);
 	uh->read_chunked = -1;
 	uh->content_length = -1;
@@ -641,6 +643,7 @@ error:
 static void __uclient_notify_read(struct uclient_http *uh)
 {
 	struct uclient *uc = &uh->uc;
+	unsigned int seq = uh->seq;
 	char *data;
 	int len;
 
@@ -675,6 +678,9 @@ static void __uclient_notify_read(struct uclient_http *uh)
 			*sep = 0;
 			cur_len = sep + 2 - data;
 			uclient_parse_http_line(uh, data);
+			if (seq != uh->seq)
+				return;
+
 			ustream_consume(uh->us, cur_len);
 			len -= cur_len;
 
