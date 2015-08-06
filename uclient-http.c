@@ -826,6 +826,7 @@ static int uclient_setup_https(struct uclient_http *uh)
 	uh->ussl.notify_error = uclient_ssl_notify_error;
 	uh->ussl.notify_verify_error = uclient_ssl_notify_verify_error;
 	uh->ussl.notify_connected = uclient_ssl_notify_connected;
+	uh->ussl.server_name = uh->uc.url->host;
 	uh->ssl_ops->init(&uh->ussl, &uh->ufd.stream, uh->ssl_ctx, false);
 	uh->ssl_ops->set_peer_cn(&uh->ussl, uh->uc.url->host);
 
