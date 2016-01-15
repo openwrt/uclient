@@ -115,18 +115,17 @@ static int uclient_do_connect(struct uclient_http *uh, const char *port)
 	if (uh->uc.url->port)
 		port = uh->uc.url->port;
 
-	fd = usock(USOCK_TCP | USOCK_NONBLOCK, uh->uc.url->host, port);
+	memset(&uh->uc.remote_addr, 0, sizeof(uh->uc.remote_addr));
+
+	fd = usock_inet(USOCK_TCP | USOCK_NONBLOCK, uh->uc.url->host, port, &uh->uc.remote_addr);
 	if (fd < 0)
 		return -1;
 
 	ustream_fd_init(&uh->ufd, fd);
 
-	memset(&uh->uc.local_addr, 0, sizeof(uh->uc.local_addr));
-	memset(&uh->uc.remote_addr, 0, sizeof(uh->uc.remote_addr));
-
 	sl = sizeof(uh->uc.local_addr);
+	memset(&uh->uc.local_addr, 0, sl);
 	getsockname(fd, &uh->uc.local_addr.sa, &sl);
-	getpeername(fd, &uh->uc.remote_addr.sa, &sl);
 
 	return 0;
 }
