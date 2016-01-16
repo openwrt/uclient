@@ -42,6 +42,7 @@ static const struct ustream_ssl_ops *ssl_ops;
 static int quiet = false;
 static bool verify = true;
 static bool default_certs = false;
+static bool no_output;
 static const char *output_file;
 static int output_fd = -1;
 static int error_ret;
@@ -99,6 +100,8 @@ static void header_done_cb(struct uclient *cl)
 	switch (cl->status_code) {
 	case 204:
 	case 200:
+		if (no_output)
+			break;
 		output_fd = open_output_file(cl->url->location, true);
 		if (output_fd < 0) {
 			if (!quiet)
@@ -122,7 +125,7 @@ static void read_data_cb(struct uclient *cl)
 	char buf[256];
 	int len;
 
-	if (output_fd < 0)
+	if (!no_output && output_fd < 0)
 		return;
 
 	while (1) {
@@ -131,7 +134,8 @@ static void read_data_cb(struct uclient *cl)
 			return;
 
 		out_bytes += len;
-		write(output_fd, buf, len);
+		if (!no_output)
+			write(output_fd, buf, len);
 	}
 }
 
@@ -266,6 +270,7 @@ static int usage(const char *progname)
 		"	--password=<password>		HTTP authentication password\n"
 		"	--user-agent|-U <str>		Set HTTP user agent\n"
 		"	--post-data=STRING		use the POST method; send STRING as the data\n"
+		"	--spider|-s			Spider mode - only check file existence\n"
 		"\n"
 		"HTTPS options:\n"
 		"	--ca-certificate=<cert>:        Load CA certificates from file <cert>\n"
@@ -312,6 +317,7 @@ enum {
 	L_PASSWORD,
 	L_USER_AGENT,
 	L_POST_DATA,
+	L_SPIDER,
 };
 
 static const struct option longopts[] = {
@@ -321,6 +327,7 @@ static const struct option longopts[] = {
 	[L_PASSWORD] = { "password", required_argument },
 	[L_USER_AGENT] = { "user-agent", required_argument },
 	[L_POST_DATA] = { "post-data", required_argument },
+	[L_SPIDER] = { "spider", no_argument },
 	{}
 };
 
@@ -337,7 +344,7 @@ int main(int argc, char **argv)
 
 	init_ustream_ssl();
 
-	while ((ch = getopt_long(argc, argv, "qO:U:", longopts, &longopt_idx)) != -1) {
+	while ((ch = getopt_long(argc, argv, "O:qsU:", longopts, &longopt_idx)) != -1) {
 		switch(ch) {
 		case 0:
 			switch (longopt_idx) {
@@ -367,6 +374,9 @@ int main(int argc, char **argv)
 			case L_POST_DATA:
 				post_data = optarg;
 				break;
+			case L_SPIDER:
+				no_output = true;
+				break;
 			default:
 				return usage(progname);
 			}
@@ -379,6 +389,9 @@ int main(int argc, char **argv)
 			break;
 		case 'q':
 			quiet = true;
+			break;
+		case 's':
+			no_output = true;
 			break;
 		default:
 			return usage(progname);
