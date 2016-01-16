@@ -410,7 +410,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if (ssl_ctx)
+	if (ssl_ctx && default_certs)
 		init_ca_cert();
 
 	rc = init_request(cl);
