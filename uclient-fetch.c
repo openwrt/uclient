@@ -52,6 +52,7 @@ static char *password;
 static char *auth_str;
 static char **urls;
 static int n_urls;
+static int timeout;
 
 static void request_done(struct uclient *cl);
 
@@ -157,6 +158,9 @@ static int init_request(struct uclient *cl)
 
 	out_bytes = 0;
 	uclient_http_set_ssl_ctx(cl, ssl_ops, ssl_ctx, verify);
+
+	if (timeout)
+		cl->timeout_msecs = timeout * 1000;
 
 	rc = uclient_connect(cl);
 	if (rc)
@@ -271,6 +275,7 @@ static int usage(const char *progname)
 		"	--user-agent|-U <str>		Set HTTP user agent\n"
 		"	--post-data=STRING		use the POST method; send STRING as the data\n"
 		"	--spider|-s			Spider mode - only check file existence\n"
+		"	--timeout=N|-T N		Set connect/request timeout to N seconds\n"
 		"\n"
 		"HTTPS options:\n"
 		"	--ca-certificate=<cert>:        Load CA certificates from file <cert>\n"
@@ -318,6 +323,7 @@ enum {
 	L_USER_AGENT,
 	L_POST_DATA,
 	L_SPIDER,
+	L_TIMEOUT,
 };
 
 static const struct option longopts[] = {
@@ -328,6 +334,7 @@ static const struct option longopts[] = {
 	[L_USER_AGENT] = { "user-agent", required_argument },
 	[L_POST_DATA] = { "post-data", required_argument },
 	[L_SPIDER] = { "spider", no_argument },
+	[L_TIMEOUT] = { "timeout", required_argument },
 	{}
 };
 
@@ -377,6 +384,9 @@ int main(int argc, char **argv)
 			case L_SPIDER:
 				no_output = true;
 				break;
+			case L_TIMEOUT:
+				timeout = atoi(optarg);
+				break;
 			default:
 				return usage(progname);
 			}
@@ -392,6 +402,9 @@ int main(int argc, char **argv)
 			break;
 		case 's':
 			no_output = true;
+			break;
+		case 'T':
+			timeout = atoi(optarg);
 			break;
 		default:
 			return usage(progname);
