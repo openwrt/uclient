@@ -22,6 +22,7 @@
 #include <dlfcn.h>
 #include <getopt.h>
 #include <fcntl.h>
+#include <glob.h>
 
 #include <libubox/blobmsg.h>
 
@@ -38,6 +39,7 @@ static struct ustream_ssl_ctx *ssl_ctx;
 static const struct ustream_ssl_ops *ssl_ops;
 static int quiet = false;
 static bool verify = true;
+static bool default_certs = false;
 static const char *output_file;
 static int output_fd = -1;
 static int error_ret;
@@ -244,6 +246,15 @@ static int usage(const char *progname)
 	return 1;
 }
 
+static void init_ca_cert(void)
+{
+	glob_t gl;
+	int i;
+
+	glob("/etc/ssl/certs/*.crt", 0, NULL, &gl);
+	for (i = 0; i < gl.gl_pathc; i++)
+		ssl_ops->context_add_ca_crt_file(ssl_ctx, gl.gl_pathv[i]);
+}
 
 static void init_ustream_ssl(void)
 {
@@ -287,6 +298,7 @@ int main(int argc, char **argv)
 	struct uclient *cl;
 	int ch;
 	int longopt_idx = 0;
+	bool has_cert = false;
 	int rc;
 
 	init_ustream_ssl();
@@ -299,6 +311,7 @@ int main(int argc, char **argv)
 				verify = false;
 				break;
 			case L_CA_CERTIFICATE:
+				has_cert = true;
 				if (ssl_ctx)
 					ssl_ops->context_add_ca_crt_file(ssl_ctx, optarg);
 				break;
@@ -332,6 +345,9 @@ int main(int argc, char **argv)
 	argv += optind;
 	argc -= optind;
 
+	if (verify && !has_cert)
+		default_certs = true;
+
 	if (argc != 1)
 		return usage(progname);
 
@@ -356,8 +372,10 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if (ssl_ctx)
+	if (ssl_ctx) {
+		init_ca_cert();
 		uclient_http_set_ssl_ctx(cl, ssl_ops, ssl_ctx, verify);
+	}
 
 	rc = init_request(cl);
 	if (!rc) {
