@@ -17,12 +17,15 @@
  */
 
 #define _GNU_SOURCE
+#include <sys/stat.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <dlfcn.h>
 #include <getopt.h>
 #include <fcntl.h>
 #include <glob.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #include <libubox/blobmsg.h>
 
@@ -53,17 +56,23 @@ static char *auth_str;
 static char **urls;
 static int n_urls;
 static int timeout;
+static bool resume, cur_resume;
 
+static int init_request(struct uclient *cl);
 static void request_done(struct uclient *cl);
 
-static int open_output_file(const char *path, bool create)
+static int open_output_file(const char *path, uint64_t resume_offset)
 {
 	char *filename = NULL;
-	int flags = O_WRONLY;
+	int flags;
 	int ret;
 
-	if (create)
-		flags |= O_CREAT | O_EXCL;
+	if (cur_resume)
+		flags = O_RDWR;
+	else
+		flags = O_WRONLY | O_EXCL;
+
+	flags |= O_CREAT;
 
 	if (output_file) {
 		if (!strcmp(output_file, "-")) {
@@ -82,11 +91,30 @@ static int open_output_file(const char *path, bool create)
 	ret = open(output_file, flags, 0644);
 	free(filename);
 
+	if (ret < 0)
+		return ret;
+
+	if (resume_offset &&
+	    lseek(ret, resume_offset, SEEK_SET) < 0) {
+		if (!quiet)
+			fprintf(stderr, "Failed to seek %"PRIu64" bytes in output file\n", resume_offset);
+		close(ret);
+		return -1;
+	}
+
+	out_bytes += resume_offset;
+
 	return ret;
 }
 
 static void header_done_cb(struct uclient *cl)
 {
+	static const struct blobmsg_policy policy = {
+		.name = "content-range",
+		.type = BLOBMSG_TYPE_STRING
+	};
+	struct blob_attr *attr;
+	uint64_t resume_offset = 0, resume_end, resume_size;
 	static int retries;
 
 	if (retries < 10 && uclient_http_redirect(cl)) {
@@ -97,13 +125,48 @@ static void header_done_cb(struct uclient *cl)
 		return;
 	}
 
-	retries = 0;
+	if (cl->status_code == 204 && cur_resume) {
+		/* Resume attempt failed, try normal download */
+		cur_resume = false;
+		init_request(cl);
+		return;
+	}
+
 	switch (cl->status_code) {
+	case 416:
+		if (!quiet)
+			fprintf(stderr, "File download already fully retrieved; nothing to do.\n");
+		request_done(cl);
+		break;
+	case 206:
+		if (!cur_resume) {
+			if (!quiet)
+				fprintf(stderr, "Error: Partial content received, full content requested\n");
+			error_ret = 8;
+			request_done(cl);
+			break;
+		}
+
+		blobmsg_parse(&policy, 1, &attr, blob_data(cl->meta), blob_len(cl->meta));
+		if (!attr) {
+			if (!quiet)
+				fprintf(stderr, "Content-Range header is missing\n");
+			error_ret = 8;
+			break;
+		}
+
+		if (sscanf(blobmsg_get_string(attr), "bytes %"PRIu64"-%"PRIu64"/%"PRIu64,
+			   &resume_offset, &resume_end, &resume_size) != 3) {
+			if (!quiet)
+				fprintf(stderr, "Content-Range header is invalid\n");
+			error_ret = 8;
+			break;
+		}
 	case 204:
 	case 200:
 		if (no_output)
 			break;
-		output_fd = open_output_file(cl->url->location, true);
+		output_fd = open_output_file(cl->url->location, resume_offset);
 		if (output_fd < 0) {
 			if (!quiet)
 				perror("Cannot open output file");
@@ -152,6 +215,29 @@ static void msg_connecting(struct uclient *cl)
 	fprintf(stderr, "Connecting to %s:%d\n", addr, port);
 }
 
+static void check_resume_offset(struct uclient *cl)
+{
+	char range_str[64];
+	struct stat st;
+	char *file;
+	int ret;
+
+	file = uclient_get_url_filename(cl->url->location, "index.html");
+	if (!file)
+		return;
+
+	ret = stat(file, &st);
+	free(file);
+	if (ret)
+		return;
+
+	if (!st.st_size)
+		return;
+
+	snprintf(range_str, sizeof(range_str), "bytes=%"PRIu64"-", (uint64_t) st.st_size);
+	uclient_http_set_header(cl, "Range", range_str);
+}
+
 static int init_request(struct uclient *cl)
 {
 	int rc;
@@ -174,6 +260,8 @@ static int init_request(struct uclient *cl)
 
 	uclient_http_reset_headers(cl);
 	uclient_http_set_header(cl, "User-Agent", user_agent);
+	if (cur_resume)
+		check_resume_offset(cl);
 
 	if (post_data) {
 		uclient_http_set_header(cl, "Content-Type", "application/x-www-form-urlencoded");
@@ -192,6 +280,7 @@ static void request_done(struct uclient *cl)
 	if (n_urls) {
 		uclient_set_url(cl, *urls, auth_str);
 		n_urls--;
+		cur_resume = resume;
 		error_ret = init_request(cl);
 		if (error_ret == 0)
 			return;
@@ -324,6 +413,7 @@ enum {
 	L_POST_DATA,
 	L_SPIDER,
 	L_TIMEOUT,
+	L_CONTINUE,
 };
 
 static const struct option longopts[] = {
@@ -335,6 +425,7 @@ static const struct option longopts[] = {
 	[L_POST_DATA] = { "post-data", required_argument },
 	[L_SPIDER] = { "spider", no_argument },
 	[L_TIMEOUT] = { "timeout", required_argument },
+	[L_CONTINUE] = { "continue", no_argument },
 	{}
 };
 
@@ -351,7 +442,7 @@ int main(int argc, char **argv)
 
 	init_ustream_ssl();
 
-	while ((ch = getopt_long(argc, argv, "O:qsU:", longopts, &longopt_idx)) != -1) {
+	while ((ch = getopt_long(argc, argv, "cO:qsU:", longopts, &longopt_idx)) != -1) {
 		switch(ch) {
 		case 0:
 			switch (longopt_idx) {
@@ -387,9 +478,15 @@ int main(int argc, char **argv)
 			case L_TIMEOUT:
 				timeout = atoi(optarg);
 				break;
+			case L_CONTINUE:
+				resume = true;
+				break;
 			default:
 				return usage(progname);
 			}
+			break;
+		case 'c':
+			resume = true;
 			break;
 		case 'U':
 			user_agent = optarg;
@@ -451,6 +548,7 @@ int main(int argc, char **argv)
 	if (ssl_ctx && default_certs)
 		init_ca_cert();
 
+	cur_resume = resume;
 	rc = init_request(cl);
 	if (!rc) {
 		/* no error received, we can enter main loop */
