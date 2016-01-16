@@ -46,50 +46,13 @@ char *uclient_get_addr(char *dest, int *port, union uclient_addr *a)
 	return dest;
 }
 
-
 struct uclient_url __hidden *
-uclient_get_url(const char *url_str, const char *auth_str)
+__uclient_get_url(const struct uclient_backend *backend,
+		  const char *host, int host_len,
+		  const char *location, const char *auth_str)
 {
-	static const struct uclient_backend *backends[] = {
-		&uclient_backend_http,
-	};
-
-	const struct uclient_backend *backend;
-	const char * const *prefix = NULL;
 	struct uclient_url *url;
-	const char *location;
 	char *host_buf, *uri_buf, *auth_buf, *next;
-	int i, host_len;
-
-	for (i = 0; i < ARRAY_SIZE(backends); i++) {
-		int prefix_len = 0;
-
-		for (prefix = backends[i]->prefix; *prefix; prefix++) {
-			prefix_len = strlen(*prefix);
-
-			if (!strncmp(url_str, *prefix, prefix_len))
-				break;
-		}
-
-		if (!*prefix)
-			continue;
-
-		url_str += prefix_len;
-		backend = backends[i];
-		break;
-	}
-
-	if (!*prefix)
-		return NULL;
-
-	next = strchr(url_str, '/');
-	if (next) {
-		location = next;
-		host_len = next - url_str;
-	} else {
-		location = "/";
-		host_len = strlen(url_str);
-	}
 
 	url = calloc_a(sizeof(*url),
 		&host_buf, host_len + 1,
@@ -98,9 +61,8 @@ uclient_get_url(const char *url_str, const char *auth_str)
 
 	url->backend = backend;
 	url->location = strcpy(uri_buf, location);
-	url->prefix = prefix - backend->prefix;
-
-	url->host = strncpy(host_buf, url_str, host_len);
+	if (host)
+		url->host = strncpy(host_buf, host, host_len);
 
 	next = strchr(host_buf, '@');
 	if (next) {
@@ -141,6 +103,67 @@ free:
 	return NULL;
 }
 
+static const char *
+uclient_split_host(const char *base, int *host_len)
+{
+	char *next, *location;
+
+	next = strchr(base, '/');
+	if (next) {
+		location = next;
+		*host_len = next - base;
+	} else {
+		location = "/";
+		*host_len = strlen(base);
+	}
+
+	return location;
+}
+
+struct uclient_url __hidden *
+uclient_get_url(const char *url_str, const char *auth_str)
+{
+	static const struct uclient_backend *backends[] = {
+		&uclient_backend_http,
+	};
+
+	const struct uclient_backend *backend;
+	const char * const *prefix = NULL;
+	struct uclient_url *url;
+	const char *location;
+	int host_len;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(backends); i++) {
+		int prefix_len = 0;
+
+		for (prefix = backends[i]->prefix; *prefix; prefix++) {
+			prefix_len = strlen(*prefix);
+
+			if (!strncmp(url_str, *prefix, prefix_len))
+				break;
+		}
+
+		if (!*prefix)
+			continue;
+
+		url_str += prefix_len;
+		backend = backends[i];
+		break;
+	}
+
+	if (!*prefix)
+		return NULL;
+
+	location = uclient_split_host(url_str, &host_len);
+	url = __uclient_get_url(backend, url_str, host_len, location, auth_str);
+	if (!url)
+		return NULL;
+
+	url->prefix = prefix - backend->prefix;
+	return url;
+}
+
 static void uclient_connection_timeout(struct uloop_timeout *timeout)
 {
 	struct uclient *cl = container_of(timeout, struct uclient, connection_timeout);
@@ -173,6 +196,37 @@ struct uclient *uclient_new(const char *url_str, const char *auth_str, const str
 	return cl;
 }
 
+int uclient_set_proxy_url(struct uclient *cl, const char *url_str, const char *auth_str)
+{
+	const struct uclient_backend *backend = cl->backend;
+	struct uclient_url *url;
+	const char *location;
+	int host_len;
+	char *next, *host;
+
+	if (!backend->update_proxy_url)
+		return -1;
+
+	next = strstr(url_str, "://");
+	if (!next)
+		return -1;
+
+	host = next + 3;
+	location = uclient_split_host(host, &host_len);
+
+	url = __uclient_get_url(NULL, host, host_len, url_str, auth_str);
+	if (!url)
+		return -1;
+
+	free(cl->proxy_url);
+	cl->proxy_url = url;
+
+	if (backend->update_proxy_url)
+		backend->update_proxy_url(cl);
+
+	return 0;
+}
+
 int uclient_set_url(struct uclient *cl, const char *url_str, const char *auth_str)
 {
 	const struct uclient_backend *backend = cl->backend;
@@ -186,6 +240,9 @@ int uclient_set_url(struct uclient *cl, const char *url_str, const char *auth_st
 		free(url);
 		return -1;
 	}
+
+	free(cl->proxy_url);
+	cl->proxy_url = NULL;
 
 	free(cl->url);
 	cl->url = url;

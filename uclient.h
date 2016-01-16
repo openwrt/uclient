@@ -61,6 +61,7 @@ struct uclient {
 
 	union uclient_addr local_addr, remote_addr;
 
+	struct uclient_url *proxy_url;
 	struct uclient_url *url;
 	int timeout_msecs;
 	void *priv;
@@ -88,6 +89,8 @@ struct uclient *uclient_new(const char *url, const char *auth_str, const struct 
 void uclient_free(struct uclient *cl);
 
 int uclient_set_url(struct uclient *cl, const char *url, const char *auth);
+int uclient_set_proxy_url(struct uclient *cl, const char *url_str, const char *auth_str);
+
 
 /**
  * Sets connection timeout.
