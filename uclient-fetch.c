@@ -47,6 +47,10 @@ static int out_bytes;
 static char *username;
 static char *password;
 static char *auth_str;
+static char **urls;
+static int n_urls;
+
+static void request_done(struct uclient *cl);
 
 static int open_output_file(const char *path, bool create)
 {
@@ -75,16 +79,6 @@ static int open_output_file(const char *path, bool create)
 	free(filename);
 
 	return ret;
-}
-
-static void request_done(struct uclient *cl)
-{
-	if (output_fd >= 0 && !output_file) {
-		close(output_fd);
-		output_fd = -1;
-	}
-	uclient_disconnect(cl);
-	uloop_end();
 }
 
 static void header_done_cb(struct uclient *cl)
@@ -156,6 +150,7 @@ static int init_request(struct uclient *cl)
 	int rc;
 
 	out_bytes = 0;
+	uclient_http_set_ssl_ctx(cl, ssl_ops, ssl_ctx, verify);
 
 	rc = uclient_connect(cl);
 	if (rc)
@@ -173,6 +168,25 @@ static int init_request(struct uclient *cl)
 
 	return 0;
 }
+
+static void request_done(struct uclient *cl)
+{
+	if (n_urls) {
+		uclient_set_url(cl, *urls, auth_str);
+		n_urls--;
+		error_ret = init_request(cl);
+		if (error_ret == 0)
+			return;
+	}
+
+	if (output_fd >= 0 && !output_file) {
+		close(output_fd);
+		output_fd = -1;
+	}
+	uclient_disconnect(cl);
+	uloop_end();
+}
+
 
 static void eof_cb(struct uclient *cl)
 {
@@ -294,13 +308,15 @@ static const struct option longopts[] = {
 	{}
 };
 
+
+
 int main(int argc, char **argv)
 {
 	const char *progname = argv[0];
 	struct uclient *cl;
-	int ch;
 	int longopt_idx = 0;
 	bool has_cert = false;
+	int i, ch;
 	int rc;
 
 	init_ustream_ssl();
@@ -350,11 +366,18 @@ int main(int argc, char **argv)
 	if (verify && !has_cert)
 		default_certs = true;
 
-	if (argc != 1)
+	if (argc < 1)
 		return usage(progname);
 
-	if (!strncmp(argv[0], "https", 5) && !ssl_ctx)
-		return no_ssl(progname);
+	if (!ssl_ctx) {
+		for (i = 0; i < argc; i++) {
+			if (!strncmp(argv[i], "https", 5))
+				return no_ssl(progname);
+		}
+	}
+
+	urls = argv + 1;
+	n_urls = argc - 1;
 
 	uloop_init();
 
@@ -374,10 +397,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if (ssl_ctx) {
+	if (ssl_ctx)
 		init_ca_cert();
-		uclient_http_set_ssl_ctx(cl, ssl_ops, ssl_ctx, verify);
-	}
 
 	rc = init_request(cl);
 	if (!rc) {
