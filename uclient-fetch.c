@@ -35,6 +35,7 @@
 #define LIB_EXT "so"
 #endif
 
+static const char *user_agent = "uclient-fetch";
 static struct ustream_ssl_ctx *ssl_ctx;
 static const struct ustream_ssl_ops *ssl_ops;
 static int quiet = false;
@@ -162,6 +163,9 @@ static int init_request(struct uclient *cl)
 	if (rc)
 		return rc;
 
+	uclient_http_reset_headers(cl);
+	uclient_http_set_header(cl, "User-Agent", user_agent);
+
 	rc = uclient_request(cl);
 	if (rc)
 		return rc;
@@ -254,6 +258,7 @@ static int usage(const char *progname)
 		"	-O <file>:                      Redirect output to file (use \"-\" for stdout)\n"
 		"	--user=<user>			HTTP authentication username\n"
 		"	--password=<password>		HTTP authentication password\n"
+		"	--user-agent|-U <str>		Set HTTP user agent\n"
 		"\n"
 		"HTTPS options:\n"
 		"	--ca-certificate=<cert>:        Load CA certificates from file <cert>\n"
@@ -298,6 +303,7 @@ enum {
 	L_CA_CERTIFICATE,
 	L_USER,
 	L_PASSWORD,
+	L_USER_AGENT,
 };
 
 static const struct option longopts[] = {
@@ -305,6 +311,7 @@ static const struct option longopts[] = {
 	[L_CA_CERTIFICATE] = { "ca-certificate", required_argument },
 	[L_USER] = { "user", required_argument },
 	[L_PASSWORD] = { "password", required_argument },
+	[L_USER_AGENT] = { "user-agent", required_argument },
 	{}
 };
 
@@ -321,7 +328,7 @@ int main(int argc, char **argv)
 
 	init_ustream_ssl();
 
-	while ((ch = getopt_long(argc, argv, "qO:", longopts, &longopt_idx)) != -1) {
+	while ((ch = getopt_long(argc, argv, "qO:U:", longopts, &longopt_idx)) != -1) {
 		switch(ch) {
 		case 0:
 			switch (longopt_idx) {
@@ -345,9 +352,15 @@ int main(int argc, char **argv)
 				password = strdup(optarg);
 				memset(optarg, '*', strlen(optarg));
 				break;
+			case L_USER_AGENT:
+				user_agent = optarg;
+				break;
 			default:
 				return usage(progname);
 			}
+			break;
+		case 'U':
+			user_agent = optarg;
 			break;
 		case 'O':
 			output_file = optarg;
