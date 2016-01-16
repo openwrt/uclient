@@ -19,6 +19,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <fcntl.h>
 
 #include <libubox/ustream.h>
 #include <libubox/ustream-ssl.h>
@@ -117,10 +118,11 @@ static int uclient_do_connect(struct uclient_http *uh, const char *port)
 
 	memset(&uh->uc.remote_addr, 0, sizeof(uh->uc.remote_addr));
 
-	fd = usock_inet(USOCK_TCP | USOCK_NONBLOCK, uh->uc.url->host, port, &uh->uc.remote_addr);
+	fd = usock_inet(USOCK_TCP, uh->uc.url->host, port, &uh->uc.remote_addr);
 	if (fd < 0)
 		return -1;
 
+	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
 	ustream_fd_init(&uh->ufd, fd);
 
 	sl = sizeof(uh->uc.local_addr);
