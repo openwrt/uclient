@@ -388,6 +388,7 @@ static int usage(const char *progname)
 		"Options:\n"
 		"	-q:                             Turn off status messages\n"
 		"	-O <file>:                      Redirect output to file (use \"-\" for stdout)\n"
+		"	-P <dir>:			Set directory for output files\n"
 		"	--user=<user>			HTTP authentication username\n"
 		"	--password=<password>		HTTP authentication password\n"
 		"	--user-agent|-U <str>		Set HTTP user agent\n"
@@ -480,7 +481,7 @@ int main(int argc, char **argv)
 	signal(SIGPIPE, SIG_IGN);
 	init_ustream_ssl();
 
-	while ((ch = getopt_long(argc, argv, "cO:qsU:Y:", longopts, &longopt_idx)) != -1) {
+	while ((ch = getopt_long(argc, argv, "cO:P:qsU:Y:", longopts, &longopt_idx)) != -1) {
 		switch(ch) {
 		case 0:
 			switch (longopt_idx) {
@@ -538,6 +539,13 @@ int main(int argc, char **argv)
 			break;
 		case 'O':
 			output_file = optarg;
+			break;
+		case 'P':
+			if (chdir(optarg)) {
+				if (!quiet)
+					perror("Change output directory");
+				exit(1);
+			}
 			break;
 		case 'q':
 			quiet = true;
