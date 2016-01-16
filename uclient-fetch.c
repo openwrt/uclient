@@ -44,6 +44,7 @@ static struct ustream_ssl_ctx *ssl_ctx;
 static const struct ustream_ssl_ops *ssl_ops;
 static int quiet = false;
 static bool verify = true;
+static bool proxy = true;
 static bool default_certs = false;
 static bool no_output;
 static const char *output_file;
@@ -58,6 +59,27 @@ static bool resume, cur_resume;
 
 static int init_request(struct uclient *cl);
 static void request_done(struct uclient *cl);
+
+static const char *
+get_proxy_url(char *url)
+{
+	char prefix[16];
+	char *sep;
+
+	if (!proxy)
+		return NULL;
+
+	sep = strchr(url, ':');
+	if (!sep)
+		return NULL;
+
+	if (sep - url > 5)
+		return NULL;
+
+	memcpy(prefix, url, sep - url);
+	strcpy(prefix + (sep - url), "_proxy");
+	return getenv(prefix);
+}
 
 static int open_output_file(const char *path, uint64_t resume_offset)
 {
@@ -275,8 +297,16 @@ static int init_request(struct uclient *cl)
 
 static void request_done(struct uclient *cl)
 {
+	const char *proxy_url;
+
 	if (n_urls) {
-		uclient_set_url(cl, *urls, auth_str);
+		proxy_url = get_proxy_url(*urls);
+		if (proxy_url) {
+			uclient_set_url(cl, proxy_url, NULL);
+			uclient_set_proxy_url(cl, *urls, auth_str);
+		} else {
+			uclient_set_url(cl, *urls, auth_str);
+		}
 		n_urls--;
 		cur_resume = resume;
 		error_ret = init_request(cl);
@@ -363,6 +393,7 @@ static int usage(const char *progname)
 		"	--post-data=STRING		use the POST method; send STRING as the data\n"
 		"	--spider|-s			Spider mode - only check file existence\n"
 		"	--timeout=N|-T N		Set connect/request timeout to N seconds\n"
+		"	--proxy=on|off|-Y on|off	Enable/disable env var configured proxy\n"
 		"\n"
 		"HTTPS options:\n"
 		"	--ca-certificate=<cert>:        Load CA certificates from file <cert>\n"
@@ -412,6 +443,8 @@ enum {
 	L_SPIDER,
 	L_TIMEOUT,
 	L_CONTINUE,
+	L_PROXY,
+	L_NO_PROXY,
 };
 
 static const struct option longopts[] = {
@@ -424,6 +457,8 @@ static const struct option longopts[] = {
 	[L_SPIDER] = { "spider", no_argument },
 	[L_TIMEOUT] = { "timeout", required_argument },
 	[L_CONTINUE] = { "continue", no_argument },
+	[L_PROXY] = { "proxy", required_argument },
+	[L_NO_PROXY] = { "no-proxy", no_argument },
 	{}
 };
 
@@ -432,6 +467,7 @@ static const struct option longopts[] = {
 int main(int argc, char **argv)
 {
 	const char *progname = argv[0];
+	const char *proxy_url;
 	char *username = NULL;
 	char *password = NULL;
 	struct uclient *cl;
@@ -442,7 +478,7 @@ int main(int argc, char **argv)
 
 	init_ustream_ssl();
 
-	while ((ch = getopt_long(argc, argv, "cO:qsU:", longopts, &longopt_idx)) != -1) {
+	while ((ch = getopt_long(argc, argv, "cO:qsU:Y:", longopts, &longopt_idx)) != -1) {
 		switch(ch) {
 		case 0:
 			switch (longopt_idx) {
@@ -481,6 +517,13 @@ int main(int argc, char **argv)
 			case L_CONTINUE:
 				resume = true;
 				break;
+			case L_PROXY:
+				if (strcmp(optarg, "on") != 0)
+					proxy = false;
+				break;
+			case L_NO_PROXY:
+				proxy = false;
+				break;
 			default:
 				return usage(progname);
 			}
@@ -502,6 +545,10 @@ int main(int argc, char **argv)
 			break;
 		case 'T':
 			timeout = atoi(optarg);
+			break;
+		case 'Y':
+			if (strcmp(optarg, "on") != 0)
+				proxy = false;
 			break;
 		default:
 			return usage(progname);
@@ -539,7 +586,13 @@ int main(int argc, char **argv)
 	if (!quiet)
 		fprintf(stderr, "Downloading '%s'\n", argv[0]);
 
-	cl = uclient_new(argv[0], auth_str, &cb);
+	proxy_url = get_proxy_url(argv[0]);
+	if (proxy_url) {
+		cl = uclient_new(proxy_url, auth_str, &cb);
+		uclient_set_proxy_url(cl, argv[0], NULL);
+	} else {
+		cl = uclient_new(argv[0], auth_str, &cb);
+	}
 	if (!cl) {
 		fprintf(stderr, "Failed to allocate uclient context\n");
 		return 1;
