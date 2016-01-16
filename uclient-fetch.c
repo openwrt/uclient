@@ -238,6 +238,8 @@ static int usage(const char *progname)
 		"Options:\n"
 		"	-q:                             Turn off status messages\n"
 		"	-O <file>:                      Redirect output to file (use \"-\" for stdout)\n"
+		"	--user=<user>			HTTP authentication username\n"
+		"	--password=<password>		HTTP authentication password\n"
 		"\n"
 		"HTTPS options:\n"
 		"	--ca-certificate=<cert>:        Load CA certificates from file <cert>\n"
