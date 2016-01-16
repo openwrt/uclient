@@ -50,8 +50,6 @@ static const char *output_file;
 static int output_fd = -1;
 static int error_ret;
 static int out_bytes;
-static char *username;
-static char *password;
 static char *auth_str;
 static char **urls;
 static int n_urls;
@@ -434,6 +432,8 @@ static const struct option longopts[] = {
 int main(int argc, char **argv)
 {
 	const char *progname = argv[0];
+	char *username = NULL;
+	char *password = NULL;
 	struct uclient *cl;
 	int longopt_idx = 0;
 	bool has_cert = false;
