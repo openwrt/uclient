@@ -26,6 +26,7 @@
 #include <glob.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <signal.h>
 
 #include <libubox/blobmsg.h>
 
@@ -476,6 +477,7 @@ int main(int argc, char **argv)
 	int i, ch;
 	int rc;
 
+	signal(SIGPIPE, SIG_IGN);
 	init_ustream_ssl();
 
 	while ((ch = getopt_long(argc, argv, "cO:qsU:Y:", longopts, &longopt_idx)) != -1) {
