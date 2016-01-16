@@ -211,6 +211,7 @@ static void uclient_http_reset_state(struct uclient_http *uh)
 
 static void uclient_http_init_request(struct uclient_http *uh)
 {
+	uh->seq++;
 	uclient_http_reset_state(uh);
 	blob_buf_init(&uh->meta, 0);
 }
@@ -561,6 +562,7 @@ uclient_http_send_headers(struct uclient_http *uh)
 static void uclient_http_headers_complete(struct uclient_http *uh)
 {
 	enum auth_type auth_type = uh->auth_type;
+	int seq = uh->uc.seq;
 
 	uh->state = HTTP_STATE_RECV_DATA;
 	uh->uc.meta = uh->meta.head;
@@ -577,7 +579,7 @@ static void uclient_http_headers_complete(struct uclient_http *uh)
 	if (uh->uc.cb->header_done)
 		uh->uc.cb->header_done(&uh->uc);
 
-	if (uh->eof)
+	if (uh->eof || seq != uh->uc.seq)
 		return;
 
 	if (uh->req_type == REQ_HEAD || uh->uc.status_code == 204) {

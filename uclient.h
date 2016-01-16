@@ -69,6 +69,7 @@ struct uclient {
 	bool data_eof;
 	int error_code;
 	int status_code;
+	int seq;
 	struct blob_attr *meta;
 
 	struct uloop_timeout connection_timeout;
