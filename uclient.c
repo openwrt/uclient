@@ -182,8 +182,10 @@ int uclient_set_url(struct uclient *cl, const char *url_str, const char *auth_st
 	if (!url)
 		return -1;
 
-	if (url->backend != cl->backend)
+	if (url->backend != cl->backend) {
+		free(url);
 		return -1;
+	}
 
 	free(cl->url);
 	cl->url = url;
