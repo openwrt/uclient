@@ -58,7 +58,7 @@ static void request_done(struct uclient *cl);
 
 static int open_output_file(const char *path, bool create)
 {
-	char *filename;
+	char *filename = NULL;
 	int flags = O_WRONLY;
 	int ret;
 
@@ -66,20 +66,20 @@ static int open_output_file(const char *path, bool create)
 		flags |= O_CREAT | O_EXCL;
 
 	if (output_file) {
-		if (!strcmp(output_file, "-"))
+		if (!strcmp(output_file, "-")) {
+			if (!quiet)
+				fprintf(stderr, "Writing to stdout\n");
+
 			return STDOUT_FILENO;
-
-		if (!quiet)
-			fprintf(stderr, "Writing to stdout\n");
-
-		unlink(output_file);
-		return open(output_file, flags, 0644);
+		}
+	} else {
+		filename = uclient_get_url_filename(path, "index.html");
+		output_file = filename;
 	}
 
-	filename = uclient_get_url_filename(path, "index.html");
 	if (!quiet)
-		fprintf(stderr, "Writing to '%s'\n", filename);
-	ret = open(filename, flags, 0644);
+		fprintf(stderr, "Writing to '%s'\n", output_file);
+	ret = open(output_file, flags, 0644);
 	free(filename);
 
 	return ret;
