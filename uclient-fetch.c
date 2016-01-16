@@ -36,6 +36,7 @@
 #endif
 
 static const char *user_agent = "uclient-fetch";
+static const char *post_data;
 static struct ustream_ssl_ctx *ssl_ctx;
 static const struct ustream_ssl_ops *ssl_ops;
 static int quiet = false;
@@ -159,12 +160,17 @@ static int init_request(struct uclient *cl)
 
 	msg_connecting(cl);
 
-	rc = uclient_http_set_request_type(cl, "GET");
+	rc = uclient_http_set_request_type(cl, post_data ? "POST" : "GET");
 	if (rc)
 		return rc;
 
 	uclient_http_reset_headers(cl);
 	uclient_http_set_header(cl, "User-Agent", user_agent);
+
+	if (post_data) {
+		uclient_http_set_header(cl, "Content-Type", "application/x-www-form-urlencoded");
+		uclient_write(cl, post_data, strlen(post_data));
+	}
 
 	rc = uclient_request(cl);
 	if (rc)
@@ -259,6 +265,7 @@ static int usage(const char *progname)
 		"	--user=<user>			HTTP authentication username\n"
 		"	--password=<password>		HTTP authentication password\n"
 		"	--user-agent|-U <str>		Set HTTP user agent\n"
+		"	--post-data=STRING		use the POST method; send STRING as the data\n"
 		"\n"
 		"HTTPS options:\n"
 		"	--ca-certificate=<cert>:        Load CA certificates from file <cert>\n"
@@ -304,6 +311,7 @@ enum {
 	L_USER,
 	L_PASSWORD,
 	L_USER_AGENT,
+	L_POST_DATA,
 };
 
 static const struct option longopts[] = {
@@ -312,6 +320,7 @@ static const struct option longopts[] = {
 	[L_USER] = { "user", required_argument },
 	[L_PASSWORD] = { "password", required_argument },
 	[L_USER_AGENT] = { "user-agent", required_argument },
+	[L_POST_DATA] = { "post-data", required_argument },
 	{}
 };
 
@@ -354,6 +363,9 @@ int main(int argc, char **argv)
 				break;
 			case L_USER_AGENT:
 				user_agent = optarg;
+				break;
+			case L_POST_DATA:
+				post_data = optarg;
 				break;
 			default:
 				return usage(progname);
