@@ -540,6 +540,9 @@ uclient_http_send_headers(struct uclient_http *uh)
 	if (uh->state >= HTTP_STATE_HEADERS_SENT)
 		return;
 
+	if (uh->uc.proxy_url)
+		url = uh->uc.proxy_url;
+
 	ustream_printf(uh->us,
 		"%s %s HTTP/1.1\r\n"
 		"Host: %s\r\n",
@@ -1116,6 +1119,7 @@ const struct uclient_backend uclient_backend_http = {
 	.connect = uclient_http_connect,
 	.disconnect = uclient_http_request_disconnect,
 	.update_url = uclient_http_free_url_state,
+	.update_proxy_url = uclient_http_free_url_state,
 
 	.read = uclient_http_read,
 	.write = uclient_http_send_data,
