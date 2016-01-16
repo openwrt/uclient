@@ -736,6 +736,10 @@ static void uclient_notify_state(struct ustream *us)
 {
 	struct uclient_http *uh = container_of(us, struct uclient_http, ufd.stream);
 
+	if (uh->ufd.stream.write_error) {
+		uclient_http_error(uh, UCLIENT_ERROR_CONNECT);
+		return;
+	}
 	uclient_notify_eof(uh);
 }
 
