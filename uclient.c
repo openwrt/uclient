@@ -46,7 +46,7 @@ char *uclient_get_addr(char *dest, int *port, union uclient_addr *a)
 	return dest;
 }
 
-struct uclient_url __hidden *
+static struct uclient_url *
 __uclient_get_url(const struct uclient_backend *backend,
 		  const char *host, int host_len,
 		  const char *location, const char *auth_str)
