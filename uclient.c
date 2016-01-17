@@ -200,7 +200,6 @@ int uclient_set_proxy_url(struct uclient *cl, const char *url_str, const char *a
 {
 	const struct uclient_backend *backend = cl->backend;
 	struct uclient_url *url;
-	const char *location;
 	int host_len;
 	char *next, *host;
 
@@ -212,7 +211,7 @@ int uclient_set_proxy_url(struct uclient *cl, const char *url_str, const char *a
 		return -1;
 
 	host = next + 3;
-	location = uclient_split_host(host, &host_len);
+	uclient_split_host(host, &host_len);
 
 	url = __uclient_get_url(NULL, host, host_len, url_str, auth_str);
 	if (!url)
