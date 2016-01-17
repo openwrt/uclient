@@ -15,7 +15,7 @@ ENDIF()
 ADD_LIBRARY(uclient SHARED uclient.c uclient-http.c uclient-utils.c)
 TARGET_LINK_LIBRARIES(uclient ubox dl)
 
-ADD_EXECUTABLE(uclient-fetch uclient-fetch.c)
+ADD_EXECUTABLE(uclient-fetch uclient-fetch.c progress.c)
 TARGET_LINK_LIBRARIES(uclient-fetch uclient)
 
 INSTALL(FILES uclient.h uclient-utils.h

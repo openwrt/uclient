@@ -30,6 +30,7 @@
 
 #include <libubox/blobmsg.h>
 
+#include "progress.h"
 #include "uclient.h"
 #include "uclient-utils.h"
 
@@ -51,15 +52,26 @@ static bool no_output;
 static const char *output_file;
 static int output_fd = -1;
 static int error_ret;
-static int out_bytes;
+static off_t out_offset;
+static off_t out_bytes;
+static off_t out_len;
 static char *auth_str;
 static char **urls;
 static int n_urls;
 static int timeout;
 static bool resume, cur_resume;
 
+static struct progress pmt;
+static struct uloop_timeout pmt_timer;
+
 static int init_request(struct uclient *cl);
 static void request_done(struct uclient *cl);
+
+static void pmt_update(struct uloop_timeout *t)
+{
+	progress_update(&pmt, out_offset, out_bytes, out_len);
+	uloop_timeout_set(t, 1000);
+}
 
 static const char *
 get_proxy_url(char *url)
@@ -110,31 +122,43 @@ static int open_output_file(const char *path, uint64_t resume_offset)
 	if (!quiet)
 		fprintf(stderr, "Writing to '%s'\n", output_file);
 	ret = open(output_file, flags, 0644);
-	free(filename);
-
 	if (ret < 0)
-		return ret;
+		goto free;
 
 	if (resume_offset &&
 	    lseek(ret, resume_offset, SEEK_SET) < 0) {
 		if (!quiet)
 			fprintf(stderr, "Failed to seek %"PRIu64" bytes in output file\n", resume_offset);
 		close(ret);
-		return -1;
+		ret = -1;
+		goto free;
 	}
 
+	out_offset = resume_offset;
 	out_bytes += resume_offset;
+	if (!quiet) {
+		progress_init(&pmt, output_file);
+		pmt_timer.cb = pmt_update;
+		pmt_timer.cb(&pmt_timer);
+	}
 
+free:
+	free(filename);
 	return ret;
 }
 
 static void header_done_cb(struct uclient *cl)
 {
-	static const struct blobmsg_policy policy = {
-		.name = "content-range",
-		.type = BLOBMSG_TYPE_STRING
+	enum {
+		H_RANGE,
+		H_LEN,
+		__H_MAX
 	};
-	struct blob_attr *attr;
+	static const struct blobmsg_policy policy[__H_MAX] = {
+		[H_RANGE] = { .name = "content-range", .type = BLOBMSG_TYPE_STRING },
+		[H_LEN] = { .name = "content-length", .type = BLOBMSG_TYPE_STRING },
+	};
+	struct blob_attr *tb[__H_MAX];
 	uint64_t resume_offset = 0, resume_end, resume_size;
 	static int retries;
 
@@ -153,6 +177,8 @@ static void header_done_cb(struct uclient *cl)
 		return;
 	}
 
+	blobmsg_parse(policy, __H_MAX, tb, blob_data(cl->meta), blob_len(cl->meta));
+
 	switch (cl->status_code) {
 	case 416:
 		if (!quiet)
@@ -168,15 +194,15 @@ static void header_done_cb(struct uclient *cl)
 			break;
 		}
 
-		blobmsg_parse(&policy, 1, &attr, blob_data(cl->meta), blob_len(cl->meta));
-		if (!attr) {
+		if (!tb[H_RANGE]) {
 			if (!quiet)
 				fprintf(stderr, "Content-Range header is missing\n");
 			error_ret = 8;
 			break;
 		}
 
-		if (sscanf(blobmsg_get_string(attr), "bytes %"PRIu64"-%"PRIu64"/%"PRIu64,
+		if (sscanf(blobmsg_get_string(tb[H_RANGE]),
+			   "bytes %"PRIu64"-%"PRIu64"/%"PRIu64,
 			   &resume_offset, &resume_end, &resume_size) != 3) {
 			if (!quiet)
 				fprintf(stderr, "Content-Range header is invalid\n");
@@ -187,6 +213,10 @@ static void header_done_cb(struct uclient *cl)
 	case 200:
 		if (no_output)
 			break;
+
+		if (tb[H_LEN])
+			out_len = strtoul(blobmsg_get_string(tb[H_LEN]), NULL, 10);
+
 		output_fd = open_output_file(cl->url->location, resume_offset);
 		if (output_fd < 0) {
 			if (!quiet)
@@ -263,7 +293,9 @@ static int init_request(struct uclient *cl)
 {
 	int rc;
 
+	out_offset = 0;
 	out_bytes = 0;
+	out_len = 0;
 	uclient_http_set_ssl_ctx(cl, ssl_ops, ssl_ctx, verify);
 
 	if (timeout)
@@ -326,12 +358,17 @@ static void request_done(struct uclient *cl)
 
 static void eof_cb(struct uclient *cl)
 {
+	if (!quiet) {
+		pmt_update(&pmt_timer);
+		uloop_timeout_cancel(&pmt_timer);
+	}
+
 	if (!cl->data_eof) {
 		if (!quiet)
 			fprintf(stderr, "Connection reset prematurely\n");
 		error_ret = 4;
 	} else if (!quiet) {
-		fprintf(stderr, "Download completed (%d bytes)\n", out_bytes);
+		fprintf(stderr, "Download completed (%"PRIu64" bytes)\n", (uint64_t) out_bytes);
 	}
 	request_done(cl);
 }
