@@ -361,6 +361,7 @@ static void eof_cb(struct uclient *cl)
 	if (!quiet) {
 		pmt_update(&pmt_timer);
 		uloop_timeout_cancel(&pmt_timer);
+		fprintf(stderr, "\n");
 	}
 
 	if (!cl->data_eof) {
