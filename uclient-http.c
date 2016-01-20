@@ -108,6 +108,8 @@ static const char * const uclient_http_prefix[] = {
 	[__PREFIX_MAX] = NULL
 };
 
+static int uclient_http_connect(struct uclient *cl);
+
 static int uclient_do_connect(struct uclient_http *uh, const char *port)
 {
 	socklen_t sl;
@@ -575,7 +577,7 @@ static void uclient_http_headers_complete(struct uclient_http *uh)
 
 	if (auth_type == AUTH_TYPE_UNKNOWN && uh->uc.status_code == 401 &&
 	    (uh->req_type == REQ_HEAD || uh->req_type == REQ_GET)) {
-		uclient_http_init_request(uh);
+		uclient_http_connect(&uh->uc);
 		uclient_http_send_headers(uh);
 		uh->state = HTTP_STATE_REQUEST_DONE;
 		return;
@@ -848,7 +850,7 @@ static int uclient_http_connect(struct uclient *cl)
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 	int ret;
 
-	if (!cl->eof || uh->disconnect)
+	if (!cl->eof || uh->disconnect || uh->connection_close)
 		uclient_http_disconnect(uh);
 
 	uclient_http_init_request(uh);
