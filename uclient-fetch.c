@@ -519,7 +519,7 @@ int main(int argc, char **argv)
 	signal(SIGPIPE, SIG_IGN);
 	init_ustream_ssl();
 
-	while ((ch = getopt_long(argc, argv, "cO:P:qsU:Y:", longopts, &longopt_idx)) != -1) {
+	while ((ch = getopt_long(argc, argv, "cO:P:qsT:U:Y:", longopts, &longopt_idx)) != -1) {
 		switch(ch) {
 		case 0:
 			switch (longopt_idx) {
