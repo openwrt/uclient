@@ -103,7 +103,10 @@ static int open_output_file(const char *path, uint64_t resume_offset)
 	if (cur_resume)
 		flags = O_RDWR;
 	else
-		flags = O_WRONLY | O_EXCL;
+		flags = O_WRONLY;
+
+	if (!cur_resume && !output_file)
+		flags |= O_EXCL;
 
 	flags |= O_CREAT;
 
