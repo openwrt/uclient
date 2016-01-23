@@ -663,28 +663,33 @@ static void __uclient_notify_read(struct uclient_http *uh)
 		return;
 
 	if (uh->state < HTTP_STATE_RECV_DATA) {
-		char *sep;
+		char *sep, *next;
 		int cur_len;
 
 		do {
-			sep = strstr(data, "\r\n");
+			sep = strchr(data, '\n');
 			if (!sep)
 				break;
 
+			next = sep + 1;
+			if (sep > data && sep[-1] == '\r')
+				sep--;
+
 			/* Check for multi-line HTTP headers */
 			if (sep > data) {
-				if (!sep[2])
+				if (!*next)
 					return;
 
-				if (isspace(sep[2]) && sep[2] != '\r') {
+				if (isspace(*next) && *next != '\r' && *next != '\n') {
 					sep[0] = ' ';
-					sep[1] = ' ';
+					if (sep + 1 < next)
+						sep[1] = ' ';
 					continue;
 				}
 			}
 
 			*sep = 0;
-			cur_len = sep + 2 - data;
+			cur_len = next - data;
 			uclient_parse_http_line(uh, data);
 			if (seq != uh->seq)
 				return;
