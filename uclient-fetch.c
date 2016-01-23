@@ -115,7 +115,8 @@ static int open_output_file(const char *path, uint64_t resume_offset)
 			if (!quiet)
 				fprintf(stderr, "Writing to stdout\n");
 
-			return STDOUT_FILENO;
+			ret = STDOUT_FILENO;
+			goto done;
 		}
 	} else {
 		filename = uclient_get_url_filename(path, "index.html");
@@ -139,6 +140,7 @@ static int open_output_file(const char *path, uint64_t resume_offset)
 
 	out_offset = resume_offset;
 	out_bytes += resume_offset;
+done:
 	if (!quiet) {
 		progress_init(&pmt, output_file);
 		pmt_timer.cb = pmt_update;
