@@ -192,6 +192,9 @@ static void uclient_notify_eof(struct uclient_http *uh)
 			return;
 	}
 
+	if (uh->content_length < 0 && uh->read_chunked >= 0)
+		uh->uc.data_eof = true;
+
 	uclient_backend_set_eof(&uh->uc);
 
 	if (uh->connection_close)
