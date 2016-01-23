@@ -1063,7 +1063,7 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 	return len;
 }
 
-bool uclient_http_redirect(struct uclient *cl)
+int uclient_http_redirect(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
 	struct blobmsg_policy location = {
@@ -1095,7 +1095,9 @@ bool uclient_http_redirect(struct uclient *cl)
 
 	free(cl->url);
 	cl->url = url;
-	uclient_http_connect(cl);
+	if (uclient_http_connect(cl))
+		return -1;
+
 	uclient_http_request_done(cl);
 
 	return true;

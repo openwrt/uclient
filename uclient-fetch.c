@@ -165,12 +165,22 @@ static void header_done_cb(struct uclient *cl)
 	uint64_t resume_offset = 0, resume_end, resume_size;
 	static int retries;
 
-	if (retries < 10 && uclient_http_redirect(cl)) {
-		if (!quiet)
-			fprintf(stderr, "Redirected to %s on %s\n", cl->url->location, cl->url->host);
+	if (retries < 10) {
+		int ret = uclient_http_redirect(cl);
+		if (ret < 0) {
+			if (!quiet)
+				fprintf(stderr, "Failed to redirect to %s on %s\n", cl->url->location, cl->url->host);
+			error_ret = 8;
+			request_done(cl);
+			return;
+		}
+		if (ret > 0) {
+			if (!quiet)
+				fprintf(stderr, "Redirected to %s on %s\n", cl->url->location, cl->url->host);
 
-		retries++;
-		return;
+			retries++;
+			return;
+		}
 	}
 
 	if (cl->status_code == 204 && cur_resume) {
