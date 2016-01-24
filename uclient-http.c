@@ -15,6 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#include <sys/socket.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <unistd.h>
@@ -90,6 +91,8 @@ struct uclient_http {
 	long read_chunked;
 	long content_length;
 
+	int usock_flags;
+
 	uint32_t nc;
 
 	struct blob_buf headers;
@@ -120,7 +123,7 @@ static int uclient_do_connect(struct uclient_http *uh, const char *port)
 
 	memset(&uh->uc.remote_addr, 0, sizeof(uh->uc.remote_addr));
 
-	fd = usock_inet(USOCK_TCP, uh->uc.url->host, port, &uh->uc.remote_addr);
+	fd = usock_inet(USOCK_TCP | uh->usock_flags, uh->uc.url->host, port, &uh->uc.remote_addr);
 	if (fd < 0)
 		return -1;
 
@@ -1125,6 +1128,28 @@ int uclient_http_set_ssl_ctx(struct uclient *cl, const struct ustream_ssl_ops *o
 	uh->ssl_ops = ops;
 	uh->ssl_ctx = ctx;
 	uh->ssl_require_validation = !!ctx && require_validation;
+
+	return 0;
+}
+
+int uclient_http_set_address_family(struct uclient *cl, int af)
+{
+	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+
+	if (cl->backend != &uclient_backend_http)
+		return -1;
+
+	switch (af) {
+	case AF_INET:
+		uh->usock_flags = USOCK_IPV4ONLY;
+		break;
+	case AF_INET6:
+		uh->usock_flags = USOCK_IPV6ONLY;
+		break;
+	default:
+		uh->usock_flags = 0;
+		break;
+	}
 
 	return 0;
 }

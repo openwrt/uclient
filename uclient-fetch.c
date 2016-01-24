@@ -18,6 +18,7 @@
 
 #define _GNU_SOURCE
 #include <sys/stat.h>
+#include <sys/socket.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <dlfcn.h>
@@ -439,6 +440,8 @@ static int usage(const char *progname)
 	fprintf(stderr,
 		"Usage: %s [options] <URL>\n"
 		"Options:\n"
+		"	-4:				Use IPv4 only\n"
+		"	-6:				Use IPv6 only\n"
 		"	-q:                             Turn off status messages\n"
 		"	-O <file>:                      Redirect output to file (use \"-\" for stdout)\n"
 		"	-P <dir>:			Set directory for output files\n"
@@ -530,11 +533,12 @@ int main(int argc, char **argv)
 	bool has_cert = false;
 	int i, ch;
 	int rc;
+	int af = -1;
 
 	signal(SIGPIPE, SIG_IGN);
 	init_ustream_ssl();
 
-	while ((ch = getopt_long(argc, argv, "cO:P:qsT:U:Y:", longopts, &longopt_idx)) != -1) {
+	while ((ch = getopt_long(argc, argv, "46cO:P:qsT:U:Y:", longopts, &longopt_idx)) != -1) {
 		switch(ch) {
 		case 0:
 			switch (longopt_idx) {
@@ -583,6 +587,12 @@ int main(int argc, char **argv)
 			default:
 				return usage(progname);
 			}
+			break;
+		case '4':
+			af = AF_INET;
+			break;
+		case '6':
+			af = AF_INET6;
 			break;
 		case 'c':
 			resume = true;
@@ -652,7 +662,8 @@ int main(int argc, char **argv)
 	proxy_url = get_proxy_url(argv[0]);
 	if (proxy_url) {
 		cl = uclient_new(proxy_url, auth_str, &cb);
-		uclient_set_proxy_url(cl, argv[0], NULL);
+		if (cl)
+		    uclient_set_proxy_url(cl, argv[0], NULL);
 	} else {
 		cl = uclient_new(argv[0], auth_str, &cb);
 	}
@@ -660,6 +671,8 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Failed to allocate uclient context\n");
 		return 1;
 	}
+	if (af >= 0)
+	    uclient_http_set_address_family(cl, af);
 
 	if (ssl_ctx && default_certs)
 		init_ca_cert();
