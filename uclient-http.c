@@ -123,7 +123,9 @@ static int uclient_do_connect(struct uclient_http *uh, const char *port)
 
 	memset(&uh->uc.remote_addr, 0, sizeof(uh->uc.remote_addr));
 
-	fd = usock_inet(USOCK_TCP | uh->usock_flags, uh->uc.url->host, port, &uh->uc.remote_addr);
+	fd = usock_inet_timeout(USOCK_TCP | USOCK_NONBLOCK | uh->usock_flags,
+				uh->uc.url->host, port, &uh->uc.remote_addr,
+				uh->uc.timeout_msecs);
 	if (fd < 0)
 		return -1;
 
