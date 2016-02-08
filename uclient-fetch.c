@@ -440,11 +440,11 @@ static int usage(const char *progname)
 	fprintf(stderr,
 		"Usage: %s [options] <URL>\n"
 		"Options:\n"
-		"	-4:				Use IPv4 only\n"
-		"	-6:				Use IPv6 only\n"
-		"	-q:                             Turn off status messages\n"
-		"	-O <file>:                      Redirect output to file (use \"-\" for stdout)\n"
-		"	-P <dir>:			Set directory for output files\n"
+		"	-4				Use IPv4 only\n"
+		"	-6				Use IPv6 only\n"
+		"	-q				Turn off status messages\n"
+		"	-O <file>			Redirect output to file (use \"-\" for stdout)\n"
+		"	-P <dir>			Set directory for output files\n"
 		"	--user=<user>			HTTP authentication username\n"
 		"	--password=<password>		HTTP authentication password\n"
 		"	--user-agent|-U <str>		Set HTTP user agent\n"
@@ -454,8 +454,8 @@ static int usage(const char *progname)
 		"	--proxy=on|off|-Y on|off	Enable/disable env var configured proxy\n"
 		"\n"
 		"HTTPS options:\n"
-		"	--ca-certificate=<cert>:        Load CA certificates from file <cert>\n"
-		"	--no-check-certificate:         don't validate the server's certificate\n"
+		"	--ca-certificate=<cert>		Load CA certificates from file <cert>\n"
+		"	--no-check-certificate		don't validate the server's certificate\n"
 		"\n", progname);
 	return 1;
 }
