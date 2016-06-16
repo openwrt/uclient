@@ -286,6 +286,18 @@ static void uclient_http_process_headers(struct uclient_http *uh)
 	uh->auth_type = uclient_http_update_auth_type(uh);
 }
 
+static bool uclient_request_supports_body(enum request_type req_type)
+{
+	switch (req_type) {
+	case REQ_POST:
+	case REQ_PUT:
+	case REQ_DELETE:
+		return true;
+	default:
+		return false;
+	}
+}
+
 static void
 uclient_http_add_auth_basic(struct uclient_http *uh)
 {
@@ -564,7 +576,7 @@ uclient_http_send_headers(struct uclient_http *uh)
 	blobmsg_for_each_attr(cur, uh->headers.head, rem)
 		ustream_printf(uh->us, "%s: %s\r\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
 
-	if (uh->req_type == REQ_POST || uh->req_type == REQ_PUT)
+	if (uclient_request_supports_body(uh->req_type))
 		ustream_printf(uh->us, "Transfer-Encoding: chunked\r\n");
 
 	uclient_http_add_auth_header(uh);
@@ -992,7 +1004,7 @@ uclient_http_request_done(struct uclient *cl)
 		return -1;
 
 	uclient_http_send_headers(uh);
-	if (uh->req_type == REQ_POST || uh->req_type == REQ_PUT)
+	if (uclient_request_supports_body(uh->req_type))
 		ustream_printf(uh->us, "0\r\n\r\n");
 	uh->state = HTTP_STATE_REQUEST_DONE;
 
