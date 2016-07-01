@@ -12,6 +12,9 @@ IF(APPLE)
   LINK_DIRECTORIES(/opt/local/lib)
 ENDIF()
 
+FIND_PATH(ubox_include_dir libubox/ustream-ssl.h)
+INCLUDE_DIRECTORIES(${ubox_include_dir})
+
 ADD_LIBRARY(uclient SHARED uclient.c uclient-http.c uclient-utils.c)
 TARGET_LINK_LIBRARIES(uclient ubox dl)
 
