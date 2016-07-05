@@ -503,6 +503,7 @@ enum {
 	L_CONTINUE,
 	L_PROXY,
 	L_NO_PROXY,
+	L_QUIET,
 };
 
 static const struct option longopts[] = {
@@ -517,6 +518,7 @@ static const struct option longopts[] = {
 	[L_CONTINUE] = { "continue", no_argument },
 	[L_PROXY] = { "proxy", required_argument },
 	[L_NO_PROXY] = { "no-proxy", no_argument },
+	[L_QUIET] = { "quiet", no_argument },
 	{}
 };
 
@@ -583,6 +585,9 @@ int main(int argc, char **argv)
 				break;
 			case L_NO_PROXY:
 				proxy = false;
+				break;
+			case L_QUIET:
+				quiet = true;
 				break;
 			default:
 				return usage(progname);
