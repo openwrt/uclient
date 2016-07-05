@@ -121,6 +121,61 @@ uclient_split_host(const char *base, int *host_len)
 }
 
 struct uclient_url __hidden *
+uclient_get_url_location(struct uclient_url *url, const char *location)
+{
+	struct uclient_url *new_url;
+	char *host_buf, *uri_buf, *auth_buf, *port_buf;
+	int host_len = strlen(url->host) + 1;
+	int auth_len = url->auth ? strlen(url->auth) + 1 : 0;
+	int port_len = url->port ? strlen(url->port) + 1 : 0;
+	int uri_len;
+
+	if (strstr(location, "://"))
+		return uclient_get_url(location, url->auth);
+
+	if (location[0] == '/')
+		uri_len = strlen(location) + 1;
+	else
+		uri_len = strlen(url->location) + strlen(location) + 2;
+
+	new_url = calloc_a(sizeof(*url),
+		&host_buf, host_len,
+		&port_buf, port_len,
+		&uri_buf, uri_len,
+		&auth_buf, auth_len);
+
+	if (!new_url)
+		return NULL;
+
+	new_url->backend = url->backend;
+	new_url->prefix = url->prefix;
+	new_url->host = strcpy(host_buf, url->host);
+	if (url->port)
+		new_url->port = strcpy(port_buf, url->port);
+	if (url->auth)
+		new_url->auth = strcpy(auth_buf, url->auth);
+
+	new_url->location = uri_buf;
+	if (location[0] == '/')
+		strcpy(uri_buf, location);
+	else {
+		int len = strcspn(url->location, "?#");
+		char *buf = uri_buf;
+
+		memcpy(buf, url->location, len);
+		if (buf[len - 1] != '/') {
+			buf[len] = '/';
+			len++;
+		}
+
+		buf += len;
+		strcpy(buf, location);
+	}
+
+	return new_url;
+}
+
+struct uclient_url __hidden *
 uclient_get_url(const char *url_str, const char *auth_str)
 {
 	static const struct uclient_backend *backends[] = {

@@ -1114,7 +1114,7 @@ int uclient_http_redirect(struct uclient *cl)
 	if (!tb)
 		return false;
 
-	url = uclient_get_url(blobmsg_data(tb), url->auth);
+	url = uclient_get_url_location(url, blobmsg_data(tb));
 	if (!url)
 		return false;
 
