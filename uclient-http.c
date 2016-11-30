@@ -569,9 +569,11 @@ uclient_http_send_headers(struct uclient_http *uh)
 
 	ustream_printf(uh->us,
 		"%s %s HTTP/1.1\r\n"
-		"Host: %s\r\n",
+		"Host: %s%s%s\r\n",
 		request_types[req_type],
-		url->location, url->host);
+		url->location, url->host,
+		url->port ? ":" : "",
+		url->port ? url->port : "");
 
 	blobmsg_for_each_attr(cur, uh->headers.head, rem)
 		ustream_printf(uh->us, "%s: %s\r\n", blobmsg_name(cur), (char *) blobmsg_data(cur));
