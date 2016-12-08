@@ -254,6 +254,7 @@ static void header_done_cb(struct uclient *cl)
 static void read_data_cb(struct uclient *cl)
 {
 	char buf[256];
+	ssize_t n;
 	int len;
 
 	if (!no_output && output_fd < 0)
@@ -265,8 +266,11 @@ static void read_data_cb(struct uclient *cl)
 			return;
 
 		out_bytes += len;
-		if (!no_output)
-			write(output_fd, buf, len);
+		if (!no_output) {
+			n = write(output_fd, buf, len);
+			if (n < 0)
+				return;
+		}
 	}
 }
 
@@ -660,9 +664,11 @@ int main(int argc, char **argv)
 	uloop_init();
 
 	if (username) {
-		if (password)
-			asprintf(&auth_str, "%s:%s", username, password);
-		else
+		if (password) {
+			rc = asprintf(&auth_str, "%s:%s", username, password);
+			if (rc < 0)
+				return rc;
+		} else
 			auth_str = username;
 	}
 

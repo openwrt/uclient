@@ -379,11 +379,14 @@ get_cnonce(char *dest)
 {
 	uint32_t val = 0;
 	FILE *f;
+	size_t n;
 
 	f = fopen("/dev/urandom", "r");
 	if (f) {
-		fread(&val, sizeof(val), 1, f);
+		n = fread(&val, sizeof(val), 1, f);
 		fclose(f);
+		if (n != 1)
+			return;
 	}
 
 	bin_to_hex(dest, &val, sizeof(val));
