@@ -7,11 +7,6 @@ ADD_DEFINITIONS(-Os -Wall -Werror --std=gnu99 -g3 -Wmissing-declarations)
 
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 
-IF(APPLE)
-  INCLUDE_DIRECTORIES(/opt/local/include)
-  LINK_DIRECTORIES(/opt/local/lib)
-ENDIF()
-
 FIND_PATH(ubox_include_dir libubox/ustream-ssl.h)
 INCLUDE_DIRECTORIES(${ubox_include_dir})
 
