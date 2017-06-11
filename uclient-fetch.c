@@ -262,7 +262,7 @@ static void read_data_cb(struct uclient *cl)
 
 	while (1) {
 		len = uclient_read(cl, buf, sizeof(buf));
-		if (!len)
+		if (len <= 0)
 			return;
 
 		out_bytes += len;
