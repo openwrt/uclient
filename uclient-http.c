@@ -20,6 +20,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <string.h>
 #include <fcntl.h>
 
 #include <libubox/ustream.h>
@@ -562,6 +563,7 @@ uclient_http_send_headers(struct uclient_http *uh)
 	struct uclient_url *url = uh->uc.url;
 	struct blob_attr *cur;
 	enum request_type req_type = uh->req_type;
+	bool literal_ipv6;
 	int rem;
 
 	if (uh->state >= HTTP_STATE_HEADERS_SENT)
@@ -570,11 +572,15 @@ uclient_http_send_headers(struct uclient_http *uh)
 	if (uh->uc.proxy_url)
 		url = uh->uc.proxy_url;
 
+	literal_ipv6 = strchr(url->host, ':');
+
 	ustream_printf(uh->us,
 		"%s %s HTTP/1.1\r\n"
-		"Host: %s%s%s\r\n",
-		request_types[req_type],
-		url->location, url->host,
+		"Host: %s%s%s%s%s\r\n",
+		request_types[req_type], url->location,
+		literal_ipv6 ? "[" : "",
+		url->host,
+		literal_ipv6 ? "]" : "",
 		url->port ? ":" : "",
 		url->port ? url->port : "");
 
