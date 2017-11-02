@@ -50,7 +50,7 @@ static bool verify = true;
 static bool proxy = true;
 static bool default_certs = false;
 static bool no_output;
-static const char *output_file;
+static const char *opt_output_file;
 static int output_fd = -1;
 static int error_ret;
 static off_t out_offset;
@@ -97,6 +97,7 @@ get_proxy_url(char *url)
 
 static int open_output_file(const char *path, uint64_t resume_offset)
 {
+	const char *output_file = opt_output_file;
 	char *filename = NULL;
 	int flags;
 	int ret;
@@ -367,7 +368,7 @@ static void request_done(struct uclient *cl)
 			return;
 	}
 
-	if (output_fd >= 0 && !output_file) {
+	if (output_fd >= 0 && !opt_output_file) {
 		close(output_fd);
 		output_fd = -1;
 	}
@@ -615,7 +616,7 @@ int main(int argc, char **argv)
 			user_agent = optarg;
 			break;
 		case 'O':
-			output_file = optarg;
+			opt_output_file = optarg;
 			break;
 		case 'P':
 			if (chdir(optarg)) {
