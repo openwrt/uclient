@@ -494,7 +494,7 @@ static int no_ssl(const char *progname)
 {
 	fprintf(stderr,
 	        "%s: SSL support not available, please install one of the "
-	        "libustream-ssl-* libraries as well as the ca-bundle and "
+	        "libustream-.*[ssl|tls] packages as well as the ca-bundle and "
 		"ca-certificates packages.\n",
 	        progname);
 
