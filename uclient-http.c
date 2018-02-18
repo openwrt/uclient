@@ -946,6 +946,9 @@ static struct uclient *uclient_http_alloc(void)
 	struct uclient_http *uh;
 
 	uh = calloc_a(sizeof(*uh));
+	if (!uh)
+		return NULL;
+
 	uh->disconnect_t.cb = uclient_http_disconnect_cb;
 	blob_buf_init(&uh->headers, 0);
 
