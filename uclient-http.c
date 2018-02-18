@@ -433,13 +433,14 @@ static void add_field(char **buf, int *ofs, int *len, const char *name, const ch
 	*ofs = cur - *buf;
 }
 
-static void
+static int
 uclient_http_add_auth_digest(struct uclient_http *uh)
 {
+	int err = 0;
 	struct uclient_url *url = uh->uc.url;
 	const char *realm = NULL, *opaque = NULL;
 	const char *user, *password;
-	char *buf, *next;
+	char *buf, *next, *buf_orig;
 	int len, ofs;
 
 	char cnonce_str[9];
@@ -454,14 +455,21 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 	};
 
 	len = strlen(uh->auth_str) + 1;
-	if (len > 512)
-		return;
+	if (len > 512) {
+		err = -EINVAL;
+		goto fail;
+	}
 
 	buf = alloca(len);
+	if (!buf) {
+		err = -ENOMEM;
+		goto fail;
+	}
+
 	strcpy(buf, uh->auth_str);
 
 	/* skip auth type */
-	strsep(&buf, " ");
+	buf_orig = strsep(&buf, " ");
 
 	next = buf;
 	while (*next) {
@@ -495,8 +503,10 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 		*dest = digest_unquote_sep(&next);
 	}
 
-	if (!realm || !data.qop || !data.nonce)
-		return;
+	if (!realm || !data.qop || !data.nonce) {
+		err = -EINVAL;
+		goto fail_buf;
+	}
 
 	sprintf(nc_str, "%08x", uh->nc++);
 	get_cnonce(cnonce_str);
@@ -510,10 +520,17 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 		char *user_buf;
 
 		len = password - url->auth;
-		if (len > 256)
-			return;
+		if (len > 256) {
+			err = -EINVAL;
+			goto fail_buf;
+		}
 
 		user_buf = alloca(len + 1);
+		if (!user_buf) {
+			err = -ENOMEM;
+			goto fail_buf;
+		}
+
 		strncpy(user_buf, url->auth, len);
 		user_buf[len] = 0;
 		user = user_buf;
@@ -540,7 +557,15 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 		add_field(&buf, &ofs, &len, "opaque", opaque);
 
 	ustream_printf(uh->us, "Authorization: Digest nc=%s, qop=%s%s\r\n", data.nc, data.qop, buf);
+
 	free(buf);
+
+	return 0;
+
+fail_buf:
+	free(buf_orig);
+fail:
+	return err;
 }
 
 static void
