@@ -299,7 +299,7 @@ static bool uclient_request_supports_body(enum request_type req_type)
 	}
 }
 
-static void
+static int
 uclient_http_add_auth_basic(struct uclient_http *uh)
 {
 	struct uclient_url *url = uh->uc.url;
@@ -307,11 +307,16 @@ uclient_http_add_auth_basic(struct uclient_http *uh)
 	char *auth_buf;
 
 	if (auth_len > 512)
-		return;
+		return -EINVAL;
 
 	auth_buf = alloca(base64_len(auth_len) + 1);
+	if (!auth_buf)
+		return -ENOMEM;
+
 	base64_encode(url->auth, auth_len, auth_buf);
 	ustream_printf(uh->us, "Authorization: Basic %s\r\n", auth_buf);
+
+	return 0;
 }
 
 static char *digest_unquote_sep(char **str)
