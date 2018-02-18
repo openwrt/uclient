@@ -122,6 +122,11 @@ static int open_output_file(const char *path, uint64_t resume_offset)
 		}
 	} else {
 		filename = uclient_get_url_filename(path, "index.html");
+		if (!filename) {
+			ret = -ENOMEM;
+			goto out;
+		}
+
 		output_file = filename;
 	}
 
@@ -151,6 +156,7 @@ done:
 
 free:
 	free(filename);
+out:
 	return ret;
 }
 
