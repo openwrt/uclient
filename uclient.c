@@ -59,6 +59,9 @@ __uclient_get_url(const struct uclient_backend *backend,
 		&uri_buf, strlen(location) + 1,
 		&auth_buf, auth_str ? strlen(auth_str) + 1 : 0);
 
+	if (!url)
+		return NULL;
+
 	url->backend = backend;
 	url->location = strcpy(uri_buf, location);
 	if (host)
