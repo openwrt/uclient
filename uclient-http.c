@@ -436,12 +436,12 @@ static void add_field(char **buf, int *ofs, int *len, const char *name, const ch
 static int
 uclient_http_add_auth_digest(struct uclient_http *uh)
 {
-	int err = 0;
 	struct uclient_url *url = uh->uc.url;
 	const char *realm = NULL, *opaque = NULL;
 	const char *user, *password;
 	char *buf, *next, *buf_orig;
 	int len, ofs;
+	int err = 0;
 
 	char cnonce_str[9];
 	char nc_str[9];
@@ -568,36 +568,36 @@ fail:
 	return err;
 }
 
-static void
+static int
 uclient_http_add_auth_header(struct uclient_http *uh)
 {
 	if (!uh->uc.url->auth)
-		return;
+		return 0;
 
 	switch (uh->auth_type) {
 	case AUTH_TYPE_UNKNOWN:
 	case AUTH_TYPE_NONE:
 		break;
 	case AUTH_TYPE_BASIC:
-		uclient_http_add_auth_basic(uh);
-		break;
+		return uclient_http_add_auth_basic(uh);
 	case AUTH_TYPE_DIGEST:
-		uclient_http_add_auth_digest(uh);
-		break;
+		return uclient_http_add_auth_digest(uh);
 	}
+
+	return 0;
 }
 
-static void
+static int
 uclient_http_send_headers(struct uclient_http *uh)
 {
 	struct uclient_url *url = uh->uc.url;
 	struct blob_attr *cur;
 	enum request_type req_type = uh->req_type;
 	bool literal_ipv6;
-	int rem;
+	int err, rem;
 
 	if (uh->state >= HTTP_STATE_HEADERS_SENT)
-		return;
+		return 0;
 
 	if (uh->uc.proxy_url)
 		url = uh->uc.proxy_url;
@@ -620,11 +620,15 @@ uclient_http_send_headers(struct uclient_http *uh)
 	if (uclient_request_supports_body(uh->req_type))
 		ustream_printf(uh->us, "Transfer-Encoding: chunked\r\n");
 
-	uclient_http_add_auth_header(uh);
+	err = uclient_http_add_auth_header(uh);
+	if (err)
+		return err;
 
 	ustream_printf(uh->us, "\r\n");
 
 	uh->state = HTTP_STATE_HEADERS_SENT;
+
+	return 0;
 }
 
 static void uclient_http_headers_complete(struct uclient_http *uh)
@@ -1024,11 +1028,14 @@ static int
 uclient_http_send_data(struct uclient *cl, const char *buf, unsigned int len)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+	int err;
 
 	if (uh->state >= HTTP_STATE_REQUEST_DONE)
 		return -1;
 
-	uclient_http_send_headers(uh);
+	err = uclient_http_send_headers(uh);
+	if (err)
+		return err;
 
 	if (len > 0) {
 		ustream_printf(uh->us, "%X\r\n", len);
@@ -1043,11 +1050,15 @@ static int
 uclient_http_request_done(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+	int err;
 
 	if (uh->state >= HTTP_STATE_REQUEST_DONE)
 		return -1;
 
-	uclient_http_send_headers(uh);
+	err = uclient_http_send_headers(uh);
+	if (err)
+		return err;
+
 	if (uclient_request_supports_body(uh->req_type))
 		ustream_printf(uh->us, "0\r\n\r\n");
 	uh->state = HTTP_STATE_REQUEST_DONE;
