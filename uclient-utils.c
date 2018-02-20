@@ -178,7 +178,7 @@ char *uclient_get_url_filename(const char *url, const char *default_name)
 	len -= str - url;
 
 	if (len > 0)
-		return strncpy(calloc(1, len + 1), str, len);
+		return strndup(str, len);
 
 	return strdup(default_name);
 }
