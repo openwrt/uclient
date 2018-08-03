@@ -149,7 +149,8 @@ static void uclient_http_disconnect(struct uclient_http *uh)
 	if (uh->ssl)
 		ustream_free(&uh->ussl.stream);
 	ustream_free(&uh->ufd.stream);
-	close(uh->ufd.fd.fd);
+	if(uh->ufd.fd.fd)
+		close(uh->ufd.fd.fd);
 	uh->us = NULL;
 }
 
