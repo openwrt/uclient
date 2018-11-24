@@ -1174,8 +1174,15 @@ int uclient_http_redirect(struct uclient *cl)
 	if (!url)
 		return false;
 
-	free(cl->url);
-	cl->url = url;
+	if (cl->proxy_url) {
+		free(cl->proxy_url);
+		cl->proxy_url = url;
+	}
+	else {
+		free(cl->url);
+		cl->url = url;
+	}
+
 	if (uclient_http_connect(cl))
 		return -1;
 
