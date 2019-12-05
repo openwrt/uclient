@@ -422,3 +422,23 @@ void __hidden uclient_backend_reset_state(struct uclient *cl)
 	cl->error_code = 0;
 	uloop_timeout_cancel(&cl->timeout);
 }
+
+const char * uclient_strerror(unsigned err)
+{
+	switch (err) {
+	case UCLIENT_ERROR_UNKNOWN:
+		return "unknown error";
+	case UCLIENT_ERROR_CONNECT:
+		return "connect failed";
+	case UCLIENT_ERROR_TIMEDOUT:
+		return "timeout";
+	case UCLIENT_ERROR_SSL_INVALID_CERT:
+		return "ssl invalid cert";
+	case UCLIENT_ERROR_SSL_CN_MISMATCH:
+		return "ssl cn mismatch";
+	case UCLIENT_ERROR_MISSING_SSL_CONTEXT:
+		return "missing ssl context";
+	default:
+		return "invalid error code";
+	}
+}

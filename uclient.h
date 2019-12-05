@@ -36,6 +36,7 @@ enum uclient_error_code {
 	UCLIENT_ERROR_SSL_INVALID_CERT,
 	UCLIENT_ERROR_SSL_CN_MISMATCH,
 	UCLIENT_ERROR_MISSING_SSL_CONTEXT,
+	__UCLIENT_ERROR_MAX
 };
 
 union uclient_addr {
@@ -126,5 +127,6 @@ int uclient_http_redirect(struct uclient *cl);
 int uclient_http_set_ssl_ctx(struct uclient *cl, const struct ustream_ssl_ops *ops,
 			     struct ustream_ssl_ctx *ctx, bool require_validation);
 int uclient_http_set_address_family(struct uclient *cl, int af);
+const char *uclient_strerror(unsigned err);
 
 #endif
