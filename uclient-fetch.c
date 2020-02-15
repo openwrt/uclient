@@ -467,6 +467,7 @@ static int usage(const char *progname)
 		"HTTPS options:\n"
 		"	--ca-certificate=<cert>		Load CA certificates from file <cert>\n"
 		"	--no-check-certificate		don't validate the server's certificate\n"
+		"	--ciphers=<cipherlist>		Set the cipher list string\n"
 		"\n", progname);
 	return 1;
 }
@@ -510,6 +511,7 @@ static int no_ssl(const char *progname)
 enum {
 	L_NO_CHECK_CERTIFICATE,
 	L_CA_CERTIFICATE,
+	L_CIPHERS,
 	L_USER,
 	L_PASSWORD,
 	L_USER_AGENT,
@@ -525,6 +527,7 @@ enum {
 static const struct option longopts[] = {
 	[L_NO_CHECK_CERTIFICATE] = { "no-check-certificate", no_argument },
 	[L_CA_CERTIFICATE] = { "ca-certificate", required_argument },
+	[L_CIPHERS] = { "ciphers", required_argument },
 	[L_USER] = { "user", required_argument },
 	[L_PASSWORD] = { "password", required_argument },
 	[L_USER_AGENT] = { "user-agent", required_argument },
@@ -567,6 +570,15 @@ int main(int argc, char **argv)
 				has_cert = true;
 				if (ssl_ctx)
 					ssl_ops->context_add_ca_crt_file(ssl_ctx, optarg);
+				break;
+			case L_CIPHERS:
+				if (ssl_ctx) {
+					if (ssl_ops->context_set_ciphers(ssl_ctx, optarg)) {
+						if (!quiet)
+							fprintf(stderr, "No recognized ciphers in cipher list\n");
+						exit(1);
+					}
+				}
 				break;
 			case L_USER:
 				if (!strlen(optarg))
