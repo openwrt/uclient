@@ -43,6 +43,7 @@
 
 static const char *user_agent = "uclient-fetch";
 static const char *post_data;
+static const char *post_file;
 static struct ustream_ssl_ctx *ssl_ctx;
 static const struct ustream_ssl_ops *ssl_ops;
 static int quiet = false;
@@ -334,7 +335,7 @@ static int init_request(struct uclient *cl)
 
 	msg_connecting(cl);
 
-	rc = uclient_http_set_request_type(cl, post_data ? "POST" : "GET");
+	rc = uclient_http_set_request_type(cl, post_data || post_file ? "POST" : "GET");
 	if (rc)
 		return rc;
 
@@ -346,6 +347,26 @@ static int init_request(struct uclient *cl)
 	if (post_data) {
 		uclient_http_set_header(cl, "Content-Type", "application/x-www-form-urlencoded");
 		uclient_write(cl, post_data, strlen(post_data));
+	}
+	else if(post_file)
+	{
+		FILE *input_file;
+		uclient_http_set_header(cl, "Content-Type", "application/x-www-form-urlencoded");
+
+		input_file = fopen(post_file, "r");
+		if (!input_file)
+			return errno;
+
+		char tbuf[1024];
+		size_t rlen = 0;
+		do
+		{
+			rlen = fread(tbuf, 1, sizeof(tbuf), input_file);
+			uclient_write(cl, tbuf, rlen);
+		}
+		while(rlen);
+
+		fclose(input_file);
 	}
 
 	rc = uclient_request(cl);
@@ -460,6 +481,7 @@ static int usage(const char *progname)
 		"	--password=<password>		HTTP authentication password\n"
 		"	--user-agent|-U <str>		Set HTTP user agent\n"
 		"	--post-data=STRING		use the POST method; send STRING as the data\n"
+		"	--post-file=FILE		use the POST method; send FILE as the data\n"
 		"	--spider|-s			Spider mode - only check file existence\n"
 		"	--timeout=N|-T N		Set connect/request timeout to N seconds\n"
 		"	--proxy=on|off|-Y on|off	Enable/disable env var configured proxy\n"
@@ -514,6 +536,7 @@ enum {
 	L_PASSWORD,
 	L_USER_AGENT,
 	L_POST_DATA,
+	L_POST_FILE,
 	L_SPIDER,
 	L_TIMEOUT,
 	L_CONTINUE,
@@ -529,6 +552,7 @@ static const struct option longopts[] = {
 	[L_PASSWORD] = { "password", required_argument },
 	[L_USER_AGENT] = { "user-agent", required_argument },
 	[L_POST_DATA] = { "post-data", required_argument },
+	[L_POST_FILE] = { "post-file", required_argument },
 	[L_SPIDER] = { "spider", no_argument },
 	[L_TIMEOUT] = { "timeout", required_argument },
 	[L_CONTINUE] = { "continue", no_argument },
@@ -585,6 +609,9 @@ int main(int argc, char **argv)
 				break;
 			case L_POST_DATA:
 				post_data = optarg;
+				break;
+			case L_POST_FILE:
+				post_file = optarg;
 				break;
 			case L_SPIDER:
 				no_output = true;
@@ -706,7 +733,7 @@ int main(int argc, char **argv)
 		/* no error received, we can enter main loop */
 		uloop_run();
 	} else {
-		fprintf(stderr, "Failed to establish connection\n");
+		fprintf(stderr, "Failed to send request: %s\n", strerror(rc));
 		error_ret = 4;
 	}
 
