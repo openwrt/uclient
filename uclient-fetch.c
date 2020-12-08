@@ -233,6 +233,7 @@ static void header_done_cb(struct uclient *cl)
 			error_ret = 8;
 			break;
 		}
+		/* fall through */
 	case 204:
 	case 200:
 		if (no_output)
