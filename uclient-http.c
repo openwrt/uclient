@@ -441,7 +441,7 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 	struct uclient_url *url = uh->uc.url;
 	const char *realm = NULL, *opaque = NULL;
 	const char *user, *password;
-	char *buf, *next, *buf_orig;
+	char *buf, *next;
 	int len, ofs;
 	int err = 0;
 
@@ -471,7 +471,7 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 	strcpy(buf, uh->auth_str);
 
 	/* skip auth type */
-	buf_orig = strsep(&buf, " ");
+	strsep(&buf, " ");
 
 	next = buf;
 	while (*next) {
@@ -507,7 +507,7 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 
 	if (!realm || !data.qop || !data.nonce) {
 		err = -EINVAL;
-		goto fail_buf;
+		goto fail;
 	}
 
 	sprintf(nc_str, "%08x", uh->nc++);
@@ -524,13 +524,13 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 		len = password - url->auth;
 		if (len > 256) {
 			err = -EINVAL;
-			goto fail_buf;
+			goto fail;
 		}
 
 		user_buf = alloca(len + 1);
 		if (!user_buf) {
 			err = -ENOMEM;
-			goto fail_buf;
+			goto fail;
 		}
 
 		strncpy(user_buf, url->auth, len);
@@ -564,8 +564,6 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 
 	return 0;
 
-fail_buf:
-	free(buf_orig);
 fail:
 	return err;
 }
