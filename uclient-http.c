@@ -1108,16 +1108,17 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 		}
 	}
 
-	if (len > data_end - data)
-		len = data_end - data;
+	unsigned int diff = data_end - data;
+	if (len > diff)
+		len = diff;
 
 	if (uh->read_chunked >= 0) {
-		if (len > uh->read_chunked)
+		if (len > (unsigned long) uh->read_chunked)
 			len = uh->read_chunked;
 
 		uh->read_chunked -= len;
 	} else if (uh->content_length >= 0) {
-		if (len > uh->content_length)
+		if (len > (unsigned long) uh->content_length)
 			len = uh->content_length;
 
 		uh->content_length -= len;
