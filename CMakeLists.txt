@@ -10,8 +10,14 @@ SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 FIND_PATH(ubox_include_dir libubox/ustream-ssl.h)
 INCLUDE_DIRECTORIES(${ubox_include_dir})
 
+IF(BUILD_STATIC)
+  FIND_LIBRARY(ubox_library NAMES ubox.a)
+ELSE(BUILD_STATIC)
+  FIND_LIBRARY(ubox_library NAMES ubox)
+ENDIF(BUILD_STATIC)
+
 ADD_LIBRARY(uclient SHARED uclient.c uclient-http.c uclient-utils.c)
-TARGET_LINK_LIBRARIES(uclient ubox dl)
+TARGET_LINK_LIBRARIES(uclient ${ubox_library} dl)
 
 ADD_EXECUTABLE(uclient-fetch uclient-fetch.c progress.c)
 TARGET_LINK_LIBRARIES(uclient-fetch uclient)
