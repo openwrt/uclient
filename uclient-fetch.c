@@ -608,13 +608,13 @@ int main(int argc, char **argv)
 			case L_USER:
 				if (!strlen(optarg))
 					break;
-				username = strdup(optarg);
+				username = strdupa(optarg);
 				memset(optarg, '*', strlen(optarg));
 				break;
 			case L_PASSWORD:
 				if (!strlen(optarg))
 					break;
-				password = strdup(optarg);
+				password = strdupa(optarg);
 				memset(optarg, '*', strlen(optarg));
 				break;
 			case L_USER_AGENT:
