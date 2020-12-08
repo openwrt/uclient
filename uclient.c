@@ -287,7 +287,7 @@ int uclient_set_proxy_url(struct uclient *cl, const char *url_str, const char *a
 int uclient_set_url(struct uclient *cl, const char *url_str, const char *auth_str)
 {
 	const struct uclient_backend *backend = cl->backend;
-	struct uclient_url *url = cl->url;
+	struct uclient_url *url;
 
 	url = uclient_get_url(url_str, auth_str);
 	if (!url)
