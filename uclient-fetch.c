@@ -497,7 +497,7 @@ static int usage(const char *progname)
 static void init_ca_cert(void)
 {
 	glob_t gl;
-	int i;
+	unsigned int i;
 
 	glob("/etc/ssl/certs/*.crt", 0, NULL, &gl);
 	for (i = 0; i < gl.gl_pathc; i++)
@@ -548,20 +548,20 @@ enum {
 };
 
 static const struct option longopts[] = {
-	[L_NO_CHECK_CERTIFICATE] = { "no-check-certificate", no_argument },
-	[L_CA_CERTIFICATE] = { "ca-certificate", required_argument },
-	[L_CIPHERS] = { "ciphers", required_argument },
-	[L_USER] = { "user", required_argument },
-	[L_PASSWORD] = { "password", required_argument },
-	[L_USER_AGENT] = { "user-agent", required_argument },
-	[L_POST_DATA] = { "post-data", required_argument },
-	[L_POST_FILE] = { "post-file", required_argument },
-	[L_SPIDER] = { "spider", no_argument },
-	[L_TIMEOUT] = { "timeout", required_argument },
-	[L_CONTINUE] = { "continue", no_argument },
-	[L_PROXY] = { "proxy", required_argument },
-	[L_NO_PROXY] = { "no-proxy", no_argument },
-	[L_QUIET] = { "quiet", no_argument },
+	[L_NO_CHECK_CERTIFICATE] = { "no-check-certificate", no_argument, NULL, 0 },
+	[L_CA_CERTIFICATE] = { "ca-certificate", required_argument, NULL, 0 },
+	[L_CIPHERS] = { "ciphers", required_argument, NULL, 0 },
+	[L_USER] = { "user", required_argument, NULL, 0 },
+	[L_PASSWORD] = { "password", required_argument, NULL, 0 },
+	[L_USER_AGENT] = { "user-agent", required_argument, NULL, 0 },
+	[L_POST_DATA] = { "post-data", required_argument, NULL, 0 },
+	[L_POST_FILE] = { "post-file", required_argument, NULL, 0 },
+	[L_SPIDER] = { "spider", no_argument, NULL, 0 },
+	[L_TIMEOUT] = { "timeout", required_argument, NULL, 0 },
+	[L_CONTINUE] = { "continue", no_argument, NULL, 0 },
+	[L_PROXY] = { "proxy", required_argument, NULL, 0 },
+	[L_NO_PROXY] = { "no-proxy", no_argument, NULL, 0 },
+	[L_QUIET] = { "quiet", no_argument, NULL, 0 },
 	{}
 };
 

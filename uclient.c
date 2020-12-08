@@ -190,7 +190,7 @@ uclient_get_url(const char *url_str, const char *auth_str)
 	struct uclient_url *url;
 	const char *location;
 	int host_len;
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(backends); i++) {
 		int prefix_len = 0;

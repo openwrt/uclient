@@ -596,7 +596,8 @@ uclient_http_send_headers(struct uclient_http *uh)
 	struct blob_attr *cur;
 	enum request_type req_type = uh->req_type;
 	bool literal_ipv6;
-	int err, rem;
+	int err;
+	size_t rem;
 
 	if (uh->state >= HTTP_STATE_HEADERS_SENT)
 		return 0;
@@ -982,7 +983,7 @@ int
 uclient_http_set_request_type(struct uclient *cl, const char *type)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
-	int i;
+	unsigned int i;
 
 	if (cl->backend != &uclient_backend_http)
 		return -1;
