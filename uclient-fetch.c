@@ -503,6 +503,7 @@ static void init_ca_cert(void)
 	glob("/etc/ssl/certs/*.crt", 0, NULL, &gl);
 	for (i = 0; i < gl.gl_pathc; i++)
 		ssl_ops->context_add_ca_crt_file(ssl_ctx, gl.gl_pathv[i]);
+	globfree(&gl);
 }
 
 static void init_ustream_ssl(void)
