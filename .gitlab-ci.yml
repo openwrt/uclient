@@ -1,0 +1,46 @@
+variables:
+  CI_ENABLE_UNIT_TESTING: 1
+  CI_TARGET_BUILD_DEPENDS: uclient
+
+include:
+  - remote: https://gitlab.com/ynezz/openwrt-ci/raw/master/openwrt-ci/gitlab/main.yml
+
+
+.native ustream-ssl backend:
+  extends: .openwrt-native-build
+
+  before_script:
+    - git clone https://git.openwrt.org/project/ustream-ssl.git
+    - |
+      cd ustream-ssl &&
+      git checkout -b testing origin/$CI_COMMIT_BRANCH &&
+      export VERBOSE=1 &&
+      mkdir -p build && cd build &&
+      cmake .. -DCMAKE_INSTALL_PREFIX=/usr $CI_CMAKE_EXTRA_BUILD_ARGS && cd .. &&
+      make -j$(($(nproc)+1)) -C build &&
+      sudo make install -C build && cd ..
+
+various native checks with ustream-ssl/OpenSSL backend:
+  extends: .native ustream-ssl backend
+
+various native checks with ustream-ssl/mbedTLS backend:
+  extends: .native ustream-ssl backend
+  variables:
+    CI_CMAKE_EXTRA_BUILD_ARGS: -DMBEDTLS=on
+
+various native checks with ustream-ssl/wolfSSL backend:
+  extends: .native ustream-ssl backend
+  variables:
+    CI_CMAKE_EXTRA_BUILD_ARGS: -DWOLFSSL=on
+
+build with Atheros ATH79 SDK (out of tree):
+  extends: .openwrt-sdk-oot-build_ath79-generic
+
+build with Freescale i.MX 6 SDK (out of tree):
+  extends: .openwrt-sdk-oot-build_imx6-generic
+
+build with MIPS Malta CoreLV BE SDK (out of tree):
+  extends: .openwrt-sdk-oot-build_malta-be
+
+build with Marvell Armada Cortex A-53 SDK (out of tree):
+  extends: .openwrt-sdk-oot-build_mvebu-cortexa53
