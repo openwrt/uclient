@@ -16,11 +16,31 @@ ELSE(BUILD_STATIC)
   FIND_LIBRARY(ubox_library NAMES ubox)
 ENDIF(BUILD_STATIC)
 
-ADD_LIBRARY(uclient SHARED uclient.c uclient-http.c uclient-utils.c)
+SET(LIB_SOURCES uclient.c uclient-http.c uclient-utils.c)
+ADD_LIBRARY(uclient SHARED ${LIB_SOURCES})
 TARGET_LINK_LIBRARIES(uclient ${ubox_library} dl)
 
-ADD_EXECUTABLE(uclient-fetch uclient-fetch.c progress.c)
+SET(CLI_SOURCES uclient-fetch.c progress.c)
+ADD_EXECUTABLE(uclient-fetch ${CLI_SOURCES})
 TARGET_LINK_LIBRARIES(uclient-fetch uclient)
+
+IF(UNIT_TESTING)
+  ADD_DEFINITIONS(-DUNIT_TESTING)
+  ENABLE_TESTING()
+  ADD_SUBDIRECTORY(tests)
+
+  IF(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    ADD_LIBRARY(uclient-san SHARED ${LIB_SOURCES})
+    TARGET_COMPILE_OPTIONS(uclient-san PRIVATE -g -fno-omit-frame-pointer -fsanitize=undefined,address,leak -fno-sanitize-recover=all)
+    TARGET_LINK_OPTIONS(uclient-san PRIVATE -fsanitize=undefined,address,leak)
+    TARGET_LINK_LIBRARIES(uclient-san ${ubox_library} dl)
+
+    ADD_EXECUTABLE(uclient-fetch-san ${CLI_SOURCES})
+    TARGET_COMPILE_OPTIONS(uclient-fetch-san PRIVATE -g -fno-omit-frame-pointer -fsanitize=undefined,address,leak -fno-sanitize-recover=all)
+    TARGET_LINK_OPTIONS(uclient-fetch-san PRIVATE -fsanitize=undefined,address,leak)
+    TARGET_LINK_LIBRARIES(uclient-fetch-san uclient-san ${ubox_library} dl)
+  ENDIF()
+ENDIF()
 
 INSTALL(FILES uclient.h uclient-utils.h
 	DESTINATION include/libubox
