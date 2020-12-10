@@ -591,6 +591,8 @@ int main(int argc, char **argv)
 			switch (longopt_idx) {
 			case L_NO_CHECK_CERTIFICATE:
 				verify = false;
+				if (ssl_ctx)
+					ssl_ops->context_set_require_validation(ssl_ctx, verify);
 				break;
 			case L_CA_CERTIFICATE:
 				has_cert = true;
