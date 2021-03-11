@@ -655,7 +655,8 @@ static void uclient_http_headers_complete(struct uclient_http *uh)
 	if (uh->eof || seq != uh->uc.seq)
 		return;
 
-	if (uh->req_type == REQ_HEAD || uh->uc.status_code == 204) {
+	if (uh->req_type == REQ_HEAD || uh->uc.status_code == 204 ||
+			uh->content_length == 0) {
 		uh->eof = true;
 		uclient_notify_eof(uh);
 	}
