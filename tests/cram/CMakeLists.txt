@@ -24,7 +24,8 @@ ADD_CUSTOM_TARGET(
 
 ADD_CUSTOM_TARGET(
 	http-server ALL
-	COMMAND ${PYTHON_VENV_DIR}/bin/python3 -m http.server 1922 --bind 127.0.0.1 > /dev/null 2>&1 &
+	COMMAND ${PYTHON_VENV_DIR}/bin/python3 -m http.server 1922 --bind 127.0.0.1 > /dev/null 2>&1 & ;
+			curl --silent --retry 3 --retry-delay 1 --retry-connrefused http://127.0.0.1:1922 > /dev/null
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/server
 	DEPENDS http-server-kill
 )
