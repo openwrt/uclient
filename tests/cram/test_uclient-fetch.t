@@ -65,6 +65,8 @@ check that SSL works:
 
   $ uc -q -O /dev/null 'https://www.openwrt.org'
 
+  $ uc -q -O /dev/null 'https://letsencrypt.org'
+
   $ uc -O /dev/null 'https://downloads.openwrt.org/does-not-exist' 2>&1 | grep error
   HTTP error 404
 
