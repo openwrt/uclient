@@ -4,7 +4,7 @@ variables:
 
 include:
   - remote: https://gitlab.com/ynezz/openwrt-ci/raw/master/openwrt-ci/gitlab/main.yml
-
+  - local: .gitlab/wolfssl.yml
 
 .native ustream-ssl backend:
   extends: .openwrt-native-build
@@ -13,12 +13,21 @@ include:
     - git clone https://git.openwrt.org/project/ustream-ssl.git
     - |
       cd ustream-ssl &&
-      git checkout -b testing origin/$CI_COMMIT_BRANCH &&
+      git log -1 &&
       export VERBOSE=1 &&
       mkdir -p build && cd build &&
       cmake .. -DCMAKE_INSTALL_PREFIX=/usr $CI_CMAKE_EXTRA_BUILD_ARGS && cd .. &&
       make -j$(($(nproc)+1)) -C build &&
       sudo make install -C build && cd ..
+
+    - cd $CI_PROJECT_DIR
+    - rm -fr ustream-ssl
+
+various native checks with ustream-ssl/wolfSSL backend (master branch):
+  extends: .ustream-ssl wolfSSL master
+
+various native checks with ustream-ssl/wolfSSL backend (release branch):
+  extends: .ustream-ssl wolfSSL release
 
 various native checks with ustream-ssl/OpenSSL backend:
   extends: .native ustream-ssl backend
@@ -27,11 +36,6 @@ various native checks with ustream-ssl/mbedTLS backend:
   extends: .native ustream-ssl backend
   variables:
     CI_CMAKE_EXTRA_BUILD_ARGS: -DMBEDTLS=on
-
-various native checks with ustream-ssl/wolfSSL backend:
-  extends: .native ustream-ssl backend
-  variables:
-    CI_CMAKE_EXTRA_BUILD_ARGS: -DWOLFSSL=on
 
 build with Atheros ATH79 SDK (out of tree):
   extends: .openwrt-sdk-oot-build_ath79-generic

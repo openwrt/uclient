@@ -1,0 +1,42 @@
+.ustream-ssl wolfSSL:
+  extends: .openwrt-native-build
+  variables:
+    CI_CMAKE_EXTRA_BUILD_ARGS: -DWOLFSSL=on
+
+  before_script:
+    - git clone -b $CI_WOLFSSL_TEST_BRANCH --depth 1 https://github.com/wolfSSL/wolfssl
+    - |
+      cd wolfssl &&
+      git log -1 &&
+      ./autogen.sh &&
+      ./configure \
+          --enable-sni \
+          --enable-opensslall \
+          --enable-opensslextra \
+          --enable-altcertchains \
+          --prefix=/usr &&
+      make -j$(($(nproc)+1)) all &&
+      sudo make install && cd ..
+
+    - git clone https://git.openwrt.org/project/ustream-ssl.git
+    - |
+      cd ustream-ssl &&
+      git log -1 &&
+      export VERBOSE=1 &&
+      mkdir -p build && cd build &&
+      cmake .. -DCMAKE_INSTALL_PREFIX=/usr $CI_CMAKE_EXTRA_BUILD_ARGS && cd .. &&
+      make -j$(($(nproc)+1)) -C build &&
+      sudo make install -C build
+
+    - cd $CI_PROJECT_DIR
+    - rm -fr wolfssl ustream-ssl
+
+.ustream-ssl wolfSSL master:
+  extends: .ustream-ssl wolfSSL
+  variables:
+    CI_WOLFSSL_TEST_BRANCH: master
+
+.ustream-ssl wolfSSL release:
+  extends: .ustream-ssl wolfSSL
+  variables:
+    CI_WOLFSSL_TEST_BRANCH: release
