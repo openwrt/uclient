@@ -39,6 +39,7 @@
 #endif
 
 static const char *user_agent = "uclient-fetch";
+static const char *method = NULL;
 static const char *post_data;
 static const char *post_file;
 static char opt_post = 0; // if --post-data or --post-file are specified, then 1
@@ -334,7 +335,7 @@ static int init_request(struct uclient *cl)
 
 	msg_connecting(cl);
 
-	rc = uclient_http_set_request_type(cl, opt_post ? "POST" : "GET");
+	rc = uclient_http_set_request_type(cl, method);
 	if (rc)
 		return rc;
 
@@ -685,6 +686,15 @@ int main(int argc, char **argv)
 		default:
 			return usage(progname);
 		}
+	}
+
+	if (opt_post == 1) {
+		method = "POST";
+	} else if (no_output) {
+		/* Note: GNU wget --spider sends a HEAD and if it failed repeats with a GET */
+		method = "HEAD";
+	} else {
+		method = "GET";
 	}
 
 	argv += optind;
