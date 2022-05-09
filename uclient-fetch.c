@@ -49,6 +49,7 @@ struct header {
 static const char *user_agent = "uclient-fetch";
 static const char *post_data;
 static const char *post_file;
+static char opt_post = 0;  /* 1 when --post-data/file is used */
 static struct ustream_ssl_ctx *ssl_ctx;
 static const struct ustream_ssl_ops *ssl_ops;
 static int quiet = false;
@@ -344,7 +345,7 @@ static int init_request(struct uclient *cl)
 
 	msg_connecting(cl);
 
-	rc = uclient_http_set_request_type(cl, post_data || post_file ? "POST" : "GET");
+	rc = uclient_http_set_request_type(cl, opt_post ? "POST" : "GET");
 	if (rc)
 		return rc;
 
@@ -352,7 +353,7 @@ static int init_request(struct uclient *cl)
 
 	list_for_each_entry(h, &headers, list) {
 		if (!strcasecmp(h->name, "Content-Type")) {
-			if (!post_data && !post_file)
+			if (!opt_post)
 				return -EINVAL;
 
 			content_type = h->value;
@@ -368,14 +369,15 @@ static int init_request(struct uclient *cl)
 	if (cur_resume)
 		check_resume_offset(cl);
 
-	if (post_data) {
+	if (opt_post) {
 		uclient_http_set_header(cl, "Content-Type", content_type);
+	}
+	if (post_data) {
 		uclient_write(cl, post_data, strlen(post_data));
 	}
 	else if(post_file)
 	{
 		FILE *input_file;
-		uclient_http_set_header(cl, "Content-Type", content_type);
 
 		input_file = fopen(post_file, "r");
 		if (!input_file)
@@ -682,9 +684,19 @@ int main(int argc, char **argv)
 				user_agent = optarg;
 				break;
 			case L_POST_DATA:
+				if (opt_post) {
+					usage(progname);
+					goto out;
+				}
+				opt_post = 1;
 				post_data = optarg;
 				break;
 			case L_POST_FILE:
+				if (opt_post) {
+					usage(progname);
+					goto out;
+				}
+				opt_post = 1;
 				post_file = optarg;
 				break;
 			case L_SPIDER:
