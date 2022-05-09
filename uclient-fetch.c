@@ -50,7 +50,7 @@ static const char *user_agent = "uclient-fetch";
 static const char *method = NULL;
 static const char *post_data;
 static const char *post_file;
-static char opt_post = 0;  /* 1 when --post-data/file is used */
+static char opt_post = 0; /* 1 when --post-data/file is used, 2 when --body-data/file is used */
 static struct ustream_ssl_ctx *ssl_ctx;
 static const struct ustream_ssl_ops *ssl_ops;
 static int quiet = false;
@@ -529,6 +529,9 @@ static void usage(const char *progname)
 		"	--user-agent | -U <str>		Set HTTP user agent\n"
 		"	--post-data=STRING		use the POST method; send STRING as the data\n"
 		"	--post-file=FILE		use the POST method; send FILE as the data\n"
+		"	--method=METHOD		use the HTTP method e.g. PUT\n"
+		"	--body-data=STRING		with --method send the STRING in body\n"
+		"	--body-file=FILE		with --method send the FILE content in body\n"
 		"	--spider | -s			Spider mode - only check file existence\n"
 		"	--timeout=N | -T N		Set connect/request timeout to N seconds\n"
 		"	--proxy=on | -Y on		Enable interpretation of proxy env vars (default)\n"
@@ -595,6 +598,9 @@ enum {
 	L_USER_AGENT,
 	L_POST_DATA,
 	L_POST_FILE,
+	L_METHOD,
+	L_BODY_DATA,
+	L_BODY_FILE,
 	L_SPIDER,
 	L_TIMEOUT,
 	L_CONTINUE,
@@ -614,6 +620,9 @@ static const struct option longopts[] = {
 	[L_USER_AGENT] = { "user-agent", required_argument, NULL, 0 },
 	[L_POST_DATA] = { "post-data", required_argument, NULL, 0 },
 	[L_POST_FILE] = { "post-file", required_argument, NULL, 0 },
+	[L_METHOD] = { "method", required_argument, NULL, 0 },
+	[L_BODY_DATA] = { "body-data", required_argument, NULL, 0 },
+	[L_BODY_FILE] = { "body-file", required_argument, NULL, 0 },
 	[L_SPIDER] = { "spider", no_argument, NULL, 0 },
 	[L_TIMEOUT] = { "timeout", required_argument, NULL, 0 },
 	[L_CONTINUE] = { "continue", no_argument, NULL, 0 },
@@ -698,6 +707,25 @@ int main(int argc, char **argv)
 					goto out;
 				}
 				opt_post = 1;
+				post_file = optarg;
+				break;
+			case L_METHOD:
+				method = optarg;
+				break;
+			case L_BODY_DATA:
+				if (opt_post) {
+					usage(progname);
+					goto out;
+				}
+				opt_post = 2;
+				post_data = optarg;
+				break;
+			case L_BODY_FILE:
+				if (opt_post) {
+					usage(progname);
+					goto out;
+				}
+				opt_post = 2;
 				post_file = optarg;
 				break;
 			case L_SPIDER:
@@ -796,13 +824,25 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (opt_post == 1) {
-		method = "POST";
-	} else if (no_output) {
-		/* Note: GNU wget --spider sends a HEAD and if it failed repeats with a GET */
-		method = "HEAD";
+	if (method) {
+		if (opt_post == 1 || no_output) {
+			/* --post-data/file or --spider can't be used with --method */
+			usage(progname);
+			goto out;
+		}
 	} else {
-		method = "GET";
+		if (opt_post == 1) {
+			method = "POST";
+		} else if (opt_post == 2) {
+			/* --body-data/file specified but no --method */
+			usage(progname);
+			goto out;
+		} else if (no_output) {
+			/* Note: GNU wget --spider sends a HEAD and if it failed repeats with a GET */
+			method = "HEAD";
+		} else {
+			method = "GET";
+		}
 	}
 
 	argv += optind;
