@@ -372,6 +372,7 @@ int uclient_read(struct uclient *cl, char *buf, int len)
 void uclient_disconnect(struct uclient *cl)
 {
 	uloop_timeout_cancel(&cl->connection_timeout);
+	uloop_timeout_cancel(&cl->timeout);
 
 	if (!cl->backend->disconnect)
 		return;
