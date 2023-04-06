@@ -43,6 +43,7 @@ enum request_type {
 	REQ_DELETE,
 	REQ_GET,
 	REQ_HEAD,
+	REQ_OPTIONS,
 	REQ_POST,
 	REQ_PUT,
 	__REQ_MAX
@@ -62,6 +63,7 @@ static const char * const request_types[__REQ_MAX] = {
 	[REQ_DELETE] = "DELETE",
 	[REQ_GET] = "GET",
 	[REQ_HEAD] = "HEAD",
+	[REQ_OPTIONS] = "OPTIONS",
 	[REQ_POST] = "POST",
 	[REQ_PUT] = "PUT",
 };
@@ -297,12 +299,12 @@ static void uclient_http_process_headers(struct uclient_http *uh)
 static bool uclient_request_supports_body(enum request_type req_type)
 {
 	switch (req_type) {
-	case REQ_POST:
-	case REQ_PUT:
-	case REQ_DELETE:
-		return true;
-	default:
+	case REQ_GET:
+	case REQ_HEAD:
+	case REQ_OPTIONS:
 		return false;
+	default:
+		return true;
 	}
 }
 
