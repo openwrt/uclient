@@ -40,11 +40,11 @@ enum auth_type {
 };
 
 enum request_type {
+	REQ_DELETE,
 	REQ_GET,
 	REQ_HEAD,
 	REQ_POST,
 	REQ_PUT,
-	REQ_DELETE,
 	__REQ_MAX
 };
 
@@ -57,12 +57,13 @@ enum http_state {
 	HTTP_STATE_ERROR,
 };
 
+// Must be sorted alphabetically
 static const char * const request_types[__REQ_MAX] = {
+	[REQ_DELETE] = "DELETE",
 	[REQ_GET] = "GET",
 	[REQ_HEAD] = "HEAD",
 	[REQ_POST] = "POST",
 	[REQ_PUT] = "PUT",
-	[REQ_DELETE] = "DELETE",
 };
 
 struct uclient_http {
@@ -1003,11 +1004,15 @@ uclient_http_set_request_type(struct uclient *cl, const char *type)
 		return -1;
 
 	for (i = 0; i < ARRAY_SIZE(request_types); i++) {
-		if (strcmp(request_types[i], type) != 0)
+		int c = strcmp(request_types[i], type);
+		if (c < 0) {
 			continue;
-
-		uh->req_type = i;
-		return 0;
+		} else if (c == 0) {
+			uh->req_type = i;
+			return 0;
+		} else {
+			return -1;
+		}
 	}
 
 	return -1;
