@@ -41,6 +41,10 @@
 #define LIB_EXT "so"
 #endif
 
+#ifndef strdupa
+#define strdupa(x) strcpy(alloca(strlen(x)+1),x)
+#endif
+
 static const char *user_agent = "uclient-fetch";
 static const char *post_data;
 static const char *post_file;
