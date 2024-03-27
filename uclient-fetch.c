@@ -21,7 +21,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <dlfcn.h>
 #include <getopt.h>
 #include <fcntl.h>
 #include <glob.h>
@@ -34,12 +33,6 @@
 #include "progress.h"
 #include "uclient.h"
 #include "uclient-utils.h"
-
-#ifdef __APPLE__
-#define LIB_EXT "dylib"
-#else
-#define LIB_EXT "so"
-#endif
 
 #ifndef strdupa
 #define strdupa(x) strcpy(alloca(strlen(x)+1),x)
@@ -513,21 +506,6 @@ static void init_ca_cert(void)
 	globfree(&gl);
 }
 
-static void init_ustream_ssl(void)
-{
-	void *dlh;
-
-	dlh = dlopen("libustream-ssl." LIB_EXT, RTLD_LAZY | RTLD_LOCAL);
-	if (!dlh)
-		return;
-
-	ssl_ops = dlsym(dlh, "ustream_ssl_ops");
-	if (!ssl_ops)
-		return;
-
-	ssl_ctx = ssl_ops->context_new(false);
-}
-
 static int no_ssl(const char *progname)
 {
 	fprintf(stderr,
@@ -590,7 +568,7 @@ int main(int argc, char **argv)
 	int af = -1;
 
 	signal(SIGPIPE, SIG_IGN);
-	init_ustream_ssl();
+	ssl_ctx = uclient_new_ssl_context(&ssl_ops);
 
 	while ((ch = getopt_long(argc, argv, "46cO:P:qsT:U:Y:", longopts, &longopt_idx)) != -1) {
 		switch(ch) {

@@ -115,6 +115,7 @@ int uclient_write(struct uclient *cl, const char *buf, int len);
 int uclient_request(struct uclient *cl);
 
 char *uclient_get_addr(char *dest, int *port, union uclient_addr *a);
+struct ustream_ssl_ctx *uclient_new_ssl_context(const struct ustream_ssl_ops **ops);
 
 /* HTTP */
 extern const struct uclient_backend uclient_backend_http;

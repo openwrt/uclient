@@ -16,10 +16,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 #include <arpa/inet.h>
+#include <dlfcn.h>
 #include <libubox/ustream-ssl.h>
 #include "uclient.h"
 #include "uclient-utils.h"
 #include "uclient-backend.h"
+
+#ifdef __APPLE__
+#define LIB_EXT "dylib"
+#else
+#define LIB_EXT "so"
+#endif
 
 char *uclient_get_addr(char *dest, int *port, union uclient_addr *a)
 {
@@ -359,6 +366,27 @@ int uclient_request(struct uclient *cl)
 	uloop_timeout_set(&cl->connection_timeout, cl->timeout_msecs);
 
 	return 0;
+}
+
+struct ustream_ssl_ctx *uclient_new_ssl_context(const struct ustream_ssl_ops **ops)
+{
+	static const struct ustream_ssl_ops *ssl_ops;
+	void *dlh;
+
+	if (!ssl_ops) {
+		dlh = dlopen("libustream-ssl." LIB_EXT, RTLD_LAZY | RTLD_LOCAL);
+		if (!dlh)
+			return NULL;
+
+		ssl_ops = dlsym(dlh, "ustream_ssl_ops");
+		if (!ssl_ops) {
+			dlclose(dlh);
+			return NULL;
+		}
+	}
+
+	*ops = ssl_ops;
+	return ssl_ops->context_new(false);
 }
 
 int uclient_read(struct uclient *cl, char *buf, int len)
