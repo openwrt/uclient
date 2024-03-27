@@ -1077,8 +1077,12 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 		return 0;
 
 	data = ustream_get_read_buf(uh->us, &read_len);
-	if (!data || !read_len)
-		return 0;
+	if (!data || !read_len) {
+		ustream_poll(uh->us);
+		data = ustream_get_read_buf(uh->us, &read_len);
+		if (!data || !read_len)
+			return 0;
+	}
 
 	data_end = data + read_len;
 	read_len = 0;
