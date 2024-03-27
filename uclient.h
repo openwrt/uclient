@@ -125,6 +125,18 @@ int uclient_http_set_header(struct uclient *cl, const char *name, const char *va
 int uclient_http_set_request_type(struct uclient *cl, const char *type);
 int uclient_http_redirect(struct uclient *cl);
 
+static inline bool uclient_http_status_redirect(struct uclient *cl)
+{
+	switch (cl->status_code) {
+	case 301:
+	case 302:
+	case 307:
+		return true;
+	default:
+		return false;
+	}
+}
+
 int uclient_http_set_ssl_ctx(struct uclient *cl, const struct ustream_ssl_ops *ops,
 			     struct ustream_ssl_ctx *ctx, bool require_validation);
 int uclient_http_set_address_family(struct uclient *cl, int af);

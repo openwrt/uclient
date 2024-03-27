@@ -1159,14 +1159,8 @@ int uclient_http_redirect(struct uclient *cl)
 	if (cl->backend != &uclient_backend_http)
 		return false;
 
-	switch (cl->status_code) {
-	case 301:
-	case 302:
-	case 307:
-		break;
-	default:
+	if (!uclient_http_status_redirect(cl))
 		return false;
-	}
 
 	blobmsg_parse(&location, 1, &tb, blob_data(uh->meta.head), blob_len(uh->meta.head));
 	if (!tb)
