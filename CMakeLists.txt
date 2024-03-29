@@ -14,12 +14,17 @@ SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 
 FIND_PATH(ubox_include_dir libubox/ustream-ssl.h)
 INCLUDE_DIRECTORIES(${ubox_include_dir})
+OPTION(BUILD_UCODE "build ucode plugin" ON)
 
 IF(BUILD_STATIC)
   FIND_LIBRARY(ubox_library NAMES ubox.a)
 ELSE(BUILD_STATIC)
   FIND_LIBRARY(ubox_library NAMES ubox)
 ENDIF(BUILD_STATIC)
+
+IF(APPLE)
+  SET(UCODE_MODULE_LINK_OPTIONS "LINKER:-undefined,dynamic_lookup")
+ENDIF()
 
 SET(LIB_SOURCES uclient.c uclient-http.c uclient-utils.c)
 ADD_LIBRARY(uclient SHARED ${LIB_SOURCES})
@@ -47,6 +52,16 @@ IF(UNIT_TESTING)
   ENDIF()
 ENDIF()
 
+IF(BUILD_UCODE)
+  ADD_LIBRARY(uclient_lib MODULE ucode.c)
+  SET_TARGET_PROPERTIES(uclient_lib PROPERTIES OUTPUT_NAME uclient PREFIX "")
+  TARGET_LINK_OPTIONS(uclient_lib PRIVATE ${UCODE_MODULE_LINK_OPTIONS})
+  TARGET_LINK_LIBRARIES(uclient_lib uclient)
+  INSTALL(TARGETS uclient_lib
+	LIBRARY DESTINATION lib/ucode
+  )
+ENDIF()
+
 INSTALL(FILES uclient.h uclient-utils.h
 	DESTINATION include/libubox
 )
@@ -54,3 +69,4 @@ INSTALL(TARGETS uclient uclient-fetch
 	LIBRARY DESTINATION lib
 	RUNTIME DESTINATION bin
 )
+
