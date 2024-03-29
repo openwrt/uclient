@@ -75,6 +75,7 @@ struct uclient {
 	struct blob_attr *meta;
 
 	struct uloop_timeout connection_timeout;
+	struct uloop_timeout read_notify;
 	struct uloop_timeout timeout;
 };
 

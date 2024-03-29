@@ -780,9 +780,7 @@ static void __uclient_notify_read(struct uclient_http *uh)
 	if (uh->state == HTTP_STATE_RECV_DATA) {
 		/* Now it's uclient user turn to read some data */
 		uloop_timeout_cancel(&uc->connection_timeout);
-
-		if (uc->cb->data_read)
-			uc->cb->data_read(uc);
+		uclient_backend_read_notify(uc);
 	}
 }
 

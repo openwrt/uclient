@@ -41,5 +41,9 @@ void uclient_backend_set_eof(struct uclient *cl);
 void uclient_backend_reset_state(struct uclient *cl);
 struct uclient_url *uclient_get_url(const char *url_str, const char *auth_str);
 struct uclient_url *uclient_get_url_location(struct uclient_url *url, const char *location);
+static inline void uclient_backend_read_notify(struct uclient *cl)
+{
+	uloop_timeout_set(&cl->read_notify, 1);
+}
 
 #endif

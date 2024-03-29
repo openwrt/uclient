@@ -239,6 +239,14 @@ static void uclient_connection_timeout(struct uloop_timeout *timeout)
 	uclient_backend_set_error(cl, UCLIENT_ERROR_TIMEDOUT);
 }
 
+static void __uclient_read_notify(struct uloop_timeout *timeout)
+{
+	struct uclient *cl = container_of(timeout, struct uclient, read_notify);
+
+	if (cl->cb->data_read)
+		cl->cb->data_read(cl);
+}
+
 struct uclient *uclient_new(const char *url_str, const char *auth_str, const struct uclient_cb *cb)
 {
 	struct uclient *cl;
@@ -257,6 +265,7 @@ struct uclient *uclient_new(const char *url_str, const char *auth_str, const str
 	cl->url = url;
 	cl->timeout_msecs = UCLIENT_DEFAULT_TIMEOUT_MS;
 	cl->connection_timeout.cb = uclient_connection_timeout;
+	cl->read_notify.cb = __uclient_read_notify;
 
 	return cl;
 }
@@ -401,6 +410,7 @@ void uclient_disconnect(struct uclient *cl)
 {
 	uloop_timeout_cancel(&cl->connection_timeout);
 	uloop_timeout_cancel(&cl->timeout);
+	uloop_timeout_cancel(&cl->read_notify);
 
 	if (!cl->backend->disconnect)
 		return;
@@ -450,6 +460,7 @@ void __hidden uclient_backend_reset_state(struct uclient *cl)
 	cl->eof = false;
 	cl->error_code = 0;
 	uloop_timeout_cancel(&cl->timeout);
+	uloop_timeout_cancel(&cl->read_notify);
 }
 
 const char * uclient_strerror(unsigned err)
