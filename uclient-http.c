@@ -1229,6 +1229,14 @@ int uclient_http_set_address_family(struct uclient *cl, int af)
 	return 0;
 }
 
+static int
+uclient_http_pending_bytes(struct uclient *cl, bool write)
+{
+	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+
+	return ustream_pending_data(uh->us, write);
+}
+
 const struct uclient_backend uclient_backend_http = {
 	.prefix = uclient_http_prefix,
 
@@ -1242,4 +1250,5 @@ const struct uclient_backend uclient_backend_http = {
 	.read = uclient_http_read,
 	.write = uclient_http_send_data,
 	.request = uclient_http_request_done,
+	.pending_bytes = uclient_http_pending_bytes,
 };

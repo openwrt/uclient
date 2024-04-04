@@ -406,6 +406,14 @@ int uclient_read(struct uclient *cl, char *buf, int len)
 	return cl->backend->read(cl, buf, len);
 }
 
+int uclient_pending_bytes(struct uclient *cl, bool write)
+{
+	if (!cl->backend->pending_bytes)
+		return -1;
+
+	return cl->backend->pending_bytes(cl, write);
+}
+
 void uclient_disconnect(struct uclient *cl)
 {
 	uloop_timeout_cancel(&cl->connection_timeout);

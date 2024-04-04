@@ -34,6 +34,7 @@ struct uclient_backend {
 
 	int (*read)(struct uclient *cl, char *buf, unsigned int len);
 	int (*write)(struct uclient *cl, const char *buf, unsigned int len);
+	int (*pending_bytes)(struct uclient *cl, bool write);
 };
 
 void uclient_backend_set_error(struct uclient *cl, int code);
