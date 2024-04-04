@@ -28,20 +28,21 @@ struct uc_uclient_priv {
 	struct uclient_cb cb;
 	const struct ustream_ssl_ops *ssl_ops;
 	struct ustream_ssl_ctx *ssl_ctx;
+	uc_value_t *resource;
 	unsigned int idx;
+	int offset;
 };
 
-static void uc_uclient_register(struct uc_uclient_priv *ucl, uc_value_t *res, uc_value_t *cb)
+static void uc_uclient_register(struct uc_uclient_priv *ucl, uc_value_t *cb)
 {
 	size_t i, len;
 
 	len = ucv_array_length(registry);
-	for (i = 0; i < len; i += 2)
+	for (i = 0; i < len; i++)
 		if (!ucv_array_get(registry, i))
 			break;
 
-	ucv_array_set(registry, i, ucv_get(res));
-	ucv_array_set(registry, i + 1, ucv_get(cb));
+	ucv_array_set(registry, i, ucv_get(cb));
 	ucl->idx = i;
 }
 
@@ -247,9 +248,72 @@ uc_uclient_disconnect(uc_vm_t *vm, size_t nargs)
 }
 
 static uc_value_t *
+__uc_uclient_cb(struct uclient *cl, const char *name, uc_value_t *arg)
+{
+	struct uc_uclient_priv *ucl = cl->priv;
+	uc_vm_t *vm = uc_vm;
+	uc_value_t *cb;
+
+	cb = ucv_array_get(registry, ucl->idx);
+	if (!cb)
+		return NULL;
+
+	cb = ucv_object_get(cb, name, NULL);
+	if (!cb)
+		return NULL;
+
+	if (!ucv_is_callable(cb))
+		return NULL;
+
+	uc_vm_stack_push(vm, ucv_get(ucl->resource));
+	uc_vm_stack_push(vm, ucv_get(cb));
+	if (arg)
+		uc_vm_stack_push(vm, ucv_get(arg));
+
+	if (uc_vm_call(vm, true, !!arg) != EXCEPTION_NONE) {
+		if (vm->exhandler)
+			vm->exhandler(vm, &vm->exception);
+		return NULL;
+	}
+
+	return uc_vm_stack_pop(vm);
+}
+
+static void
+uc_write_str(struct uclient *cl, uc_value_t *val)
+{
+	uclient_write(cl, ucv_string_get(val), ucv_string_length(val));
+}
+
+static bool uc_cb_data_write(struct uclient *cl)
+{
+	struct uc_uclient_priv *ucl = cl->priv;
+	bool ret = false;
+	uc_value_t *val;
+	size_t len;
+
+	val = __uc_uclient_cb(cl, "get_post_data", ucv_int64_new(ucl->offset));
+	if (ucv_type(val) != UC_STRING)
+		goto out;
+
+	len = ucv_string_length(val);
+	if (!len)
+		goto out;
+
+	ucl->offset += len;
+	uc_write_str(cl, val);
+	ret = true;
+
+out:
+	ucv_put(val);
+	return ret;
+}
+
+static uc_value_t *
 uc_uclient_request(uc_vm_t *vm, size_t nargs)
 {
 	struct uclient *cl = uc_fn_thisval("uclient");
+	struct uc_uclient_priv *ucl;
 	uc_value_t *type = uc_fn_arg(0);
 	uc_value_t *arg = uc_fn_arg(1);
 	uc_value_t *cur;
@@ -257,6 +321,9 @@ uc_uclient_request(uc_vm_t *vm, size_t nargs)
 
 	if (!cl || !type_str)
 		return NULL;
+
+	ucl = cl->priv;
+	ucl->offset = 0;
 
 	if (uclient_http_set_request_type(cl, type_str))
 		return NULL;
@@ -284,6 +351,18 @@ uc_uclient_request(uc_vm_t *vm, size_t nargs)
 		}
 	}
 
+	if ((cur = ucv_object_get(arg, "post_data", NULL)) != NULL) {
+		if (ucv_type(cur) != UC_STRING)
+			return NULL;
+
+		uc_write_str(cl, cur);
+	}
+
+	while (uc_cb_data_write(cl))
+		if (uclient_pending_bytes(cl, true))
+			return ucv_boolean_new(true);
+
+	ucl->offset = -1;
 	if (uclient_request(cl))
 		return NULL;
 
@@ -362,57 +441,10 @@ uc_uclient_read(uc_vm_t *vm, size_t nargs)
 	return ucv_stringbuf_finish(strbuf);
 }
 
-static uc_value_t *
-uc_uclient_write(uc_vm_t *vm, size_t nargs)
+static void
+uc_uclient_cb(struct uclient *cl, const char *name, uc_value_t *arg)
 {
-	struct uclient *cl = uc_fn_thisval("uclient");
-
-	if (!cl)
-		return NULL;
-
-	for (size_t i = 0; i < nargs; i++)
-		if (ucv_type(uc_fn_arg(i)) != UC_STRING)
-			return NULL;
-
-	for (size_t i = 0; i < nargs; i++) {
-		uc_value_t *cur = uc_fn_arg(i);
-
-		uclient_write(cl, ucv_string_get(cur), ucv_string_length(cur));
-	}
-
-	return ucv_boolean_new(true);
-}
-
-static void uc_uclient_cb(struct uclient *cl, const char *name, uc_value_t *arg)
-{
-	struct uc_uclient_priv *ucl = cl->priv;
-	uc_value_t *cl_res, *cb;
-	uc_vm_t *vm = uc_vm;
-
-	cb = ucv_array_get(registry, ucl->idx + 1);
-	if (!cb)
-		return;
-
-	cb = ucv_object_get(cb, name, NULL);
-	if (!cb)
-		return;
-
-	if (!ucv_is_callable(cb))
-		return;
-
-	cl_res = ucv_array_get(registry, ucl->idx);
-	uc_vm_stack_push(vm, ucv_get(cl_res));
-	uc_vm_stack_push(vm, ucv_get(cb));
-	if (arg)
-		uc_vm_stack_push(vm, ucv_get(arg));
-
-	if (uc_vm_call(vm, true, !!arg) != EXCEPTION_NONE) {
-		if (vm->exhandler)
-			vm->exhandler(vm, &vm->exception);
-		return;
-	}
-
-	ucv_put(uc_vm_stack_pop(vm));
+	ucv_put(__uc_uclient_cb(cl, name, arg));
 }
 
 static void uc_cb_data_read(struct uclient *cl)
@@ -422,7 +454,17 @@ static void uc_cb_data_read(struct uclient *cl)
 
 static void uc_cb_data_sent(struct uclient *cl)
 {
-	uc_uclient_cb(cl, "data_sent", NULL);
+	struct uc_uclient_priv *ucl = cl->priv;
+
+	if (ucl->offset < 0 || uclient_pending_bytes(cl, true))
+		return;
+
+	while (uc_cb_data_write(cl))
+		if (uclient_pending_bytes(cl, true))
+			return;
+
+	ucl->offset = -1;
+	uclient_request(cl);
 }
 
 static void uc_cb_data_eof(struct uclient *cl)
@@ -449,7 +491,6 @@ uc_uclient_new(uc_vm_t *vm, size_t nargs)
 	uc_value_t *cb = uc_fn_arg(2);
 	static bool _init_done;
 	struct uclient *cl;
-	uc_value_t *ret;
 
 	if (!_init_done) {
 		uloop_init();
@@ -466,7 +507,7 @@ uc_uclient_new(uc_vm_t *vm, size_t nargs)
 	ucl = calloc(1, sizeof(*ucl));
 	if (ucv_object_get(cb, "data_read", NULL))
 		ucl->cb.data_read = uc_cb_data_read;
-	if (ucv_object_get(cb, "data_sent", NULL))
+	if (ucv_object_get(cb, "get_post_data", NULL))
 		ucl->cb.data_sent = uc_cb_data_sent;
 	if (ucv_object_get(cb, "data_eof", NULL))
 		ucl->cb.data_eof = uc_cb_data_eof;
@@ -482,10 +523,10 @@ uc_uclient_new(uc_vm_t *vm, size_t nargs)
 	}
 
 	cl->priv = ucl;
-	ret = ucv_resource_new(uc_uclient_type, cl);
-	uc_uclient_register(ucl, ret, cb);
+	uc_uclient_register(ucl, cb);
+	ucl->resource = ucv_resource_new(uc_uclient_type, cl);
 
-	return ret;
+	return ucl->resource;
 }
 static const uc_function_list_t uclient_fns[] = {
 	{ "free", uc_uclient_free },
@@ -502,7 +543,6 @@ static const uc_function_list_t uclient_fns[] = {
 	{ "status", uc_uclient_status },
 
 	{ "read", uc_uclient_read },
-	{ "write", uc_uclient_write },
 };
 
 static const uc_function_list_t global_fns[] = {
