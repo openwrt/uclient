@@ -252,13 +252,13 @@ __uc_uclient_cb(struct uclient *cl, const char *name, uc_value_t *arg)
 {
 	struct uc_uclient_priv *ucl = cl->priv;
 	uc_vm_t *vm = uc_vm;
-	uc_value_t *cb;
+	uc_value_t *cb, *cb_obj;
 
-	cb = ucv_array_get(registry, ucl->idx);
-	if (!cb)
+	cb_obj = ucv_array_get(registry, ucl->idx);
+	if (!cb_obj)
 		return NULL;
 
-	cb = ucv_object_get(cb, name, NULL);
+	cb = ucv_property_get(cb_obj, name);
 	if (!cb)
 		return NULL;
 
@@ -267,10 +267,11 @@ __uc_uclient_cb(struct uclient *cl, const char *name, uc_value_t *arg)
 
 	uc_vm_stack_push(vm, ucv_get(ucl->resource));
 	uc_vm_stack_push(vm, ucv_get(cb));
+	uc_vm_stack_push(vm, ucv_get(cb_obj));
 	if (arg)
 		uc_vm_stack_push(vm, ucv_get(arg));
 
-	if (uc_vm_call(vm, true, !!arg) != EXCEPTION_NONE) {
+	if (uc_vm_call(vm, true, !!arg + 1) != EXCEPTION_NONE) {
 		if (vm->exhandler)
 			vm->exhandler(vm, &vm->exception);
 		return NULL;
@@ -330,7 +331,7 @@ uc_uclient_request(uc_vm_t *vm, size_t nargs)
 
 	uclient_http_reset_headers(cl);
 
-	if ((cur = ucv_object_get(arg, "headers", NULL)) != NULL) {
+	if ((cur = ucv_property_get(arg, "headers")) != NULL) {
 		if (ucv_type(cur) != UC_OBJECT)
 			return NULL;
 
@@ -351,7 +352,7 @@ uc_uclient_request(uc_vm_t *vm, size_t nargs)
 		}
 	}
 
-	if ((cur = ucv_object_get(arg, "post_data", NULL)) != NULL) {
+	if ((cur = ucv_property_get(arg, "post_data")) != NULL) {
 		if (ucv_type(cur) != UC_STRING)
 			return NULL;
 
@@ -505,15 +506,15 @@ uc_uclient_new(uc_vm_t *vm, size_t nargs)
 		return NULL;
 
 	ucl = calloc(1, sizeof(*ucl));
-	if (ucv_object_get(cb, "data_read", NULL))
+	if (ucv_property_get(cb, "data_read"))
 		ucl->cb.data_read = uc_cb_data_read;
-	if (ucv_object_get(cb, "get_post_data", NULL))
+	if (ucv_property_get(cb, "get_post_data"))
 		ucl->cb.data_sent = uc_cb_data_sent;
-	if (ucv_object_get(cb, "data_eof", NULL))
+	if (ucv_property_get(cb, "data_eof"))
 		ucl->cb.data_eof = uc_cb_data_eof;
-	if (ucv_object_get(cb, "header_done", NULL))
+	if (ucv_property_get(cb, "header_done"))
 		ucl->cb.header_done = uc_cb_header_done;
-	if (ucv_object_get(cb, "error", NULL))
+	if (ucv_property_get(cb, "error"))
 		ucl->cb.error = uc_cb_error;
 
 	cl = uclient_new(ucv_string_get(url), ucv_string_get(auth_str), &ucl->cb);

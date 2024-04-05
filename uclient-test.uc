@@ -18,15 +18,15 @@ if (!url) {
 
 uloop.init();
 uc = uclient.new(url, null, {
-	header_done: () => {
+	header_done: (cb) => {
 		warn(sprintf("Headers: %.J\nStatus: %.J\n", uc.get_headers(), uc.status()));
 	},
 	data_read: fetch_data,
-	data_eof: () => {
+	data_eof: (cb) => {
 		stdout.flush();
 		uloop.end();
 	},
-	error: (code) => {
+	error: (cb, code) => {
 		warn(`Error: ${code}\n`);
 		uloop.end();
 	}
