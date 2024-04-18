@@ -861,17 +861,23 @@ static void uclient_ssl_notify_state(struct ustream *us)
 static void uclient_ssl_notify_error(struct ustream_ssl *ssl, int error, const char *str)
 {
 	struct uclient_http *uh = container_of(ssl, struct uclient_http, ussl);
+	struct uclient *uc = &uh->uc;
 
+	if (uc->cb->log_msg)
+		uc->cb->log_msg(uc, UCLIENT_LOG_SSL_ERROR, str);
 	uclient_http_error(uh, UCLIENT_ERROR_CONNECT);
 }
 
 static void uclient_ssl_notify_verify_error(struct ustream_ssl *ssl, int error, const char *str)
 {
 	struct uclient_http *uh = container_of(ssl, struct uclient_http, ussl);
+	struct uclient *uc = &uh->uc;
 
 	if (!uh->ssl_require_validation)
 		return;
 
+	if (uc->cb->log_msg)
+		uc->cb->log_msg(uc, UCLIENT_LOG_SSL_VERIFY_ERROR, str);
 	uclient_http_error(uh, UCLIENT_ERROR_SSL_INVALID_CERT);
 }
 

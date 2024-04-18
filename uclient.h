@@ -39,6 +39,12 @@ enum uclient_error_code {
 	__UCLIENT_ERROR_MAX
 };
 
+enum uclient_log_type {
+	UCLIENT_LOG_SSL_ERROR,
+	UCLIENT_LOG_SSL_VERIFY_ERROR,
+	__UCLIENT_LOG_MAX
+};
+
 union uclient_addr {
 	struct sockaddr sa;
 	struct sockaddr_in sin;
@@ -85,6 +91,7 @@ struct uclient_cb {
 	void (*data_eof)(struct uclient *cl);
 	void (*header_done)(struct uclient *cl);
 	void (*error)(struct uclient *cl, int code);
+	void (*log_msg)(struct uclient *cl, enum uclient_log_type type, const char *msg);
 };
 
 struct uclient *uclient_new(const char *url, const char *auth_str, const struct uclient_cb *cb);
