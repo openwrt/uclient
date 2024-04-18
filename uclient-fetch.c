@@ -420,6 +420,23 @@ static void eof_cb(struct uclient *cl)
 	request_done(cl);
 }
 
+static void
+handle_uclient_log_msg(struct uclient *cl, enum uclient_log_type type, const char *msg)
+{
+	static const char * const type_str_list[] = {
+		[UCLIENT_LOG_SSL_ERROR] = "SSL error",
+		[UCLIENT_LOG_SSL_VERIFY_ERROR] = "SSL verify error",
+	};
+	const char *type_str = NULL;
+
+	if (type < ARRAY_SIZE(type_str_list))
+		type_str = type_str_list[type];
+	if (!type_str)
+		type_str = "Unknown";
+
+	fprintf(stderr, "%s: %s\n", type_str, msg);
+}
+
 static void handle_uclient_error(struct uclient *cl, int code)
 {
 	const char *type = "Unknown error";
@@ -463,6 +480,7 @@ static const struct uclient_cb cb = {
 	.data_read = read_data_cb,
 	.data_eof = eof_cb,
 	.error = handle_uclient_error,
+	.log_msg = handle_uclient_log_msg,
 };
 
 static int usage(const char *progname)
@@ -517,6 +535,11 @@ static int no_ssl(const char *progname)
 	return 1;
 }
 
+static void debug_cb(void *priv, int level, const char *msg)
+{
+	fprintf(stderr, "%s\n", msg);
+}
+
 enum {
 	L_NO_CHECK_CERTIFICATE,
 	L_CA_CERTIFICATE,
@@ -532,6 +555,7 @@ enum {
 	L_PROXY,
 	L_NO_PROXY,
 	L_QUIET,
+	L_VERBOSE,
 };
 
 static const struct option longopts[] = {
@@ -549,6 +573,7 @@ static const struct option longopts[] = {
 	[L_PROXY] = { "proxy", required_argument, NULL, 0 },
 	[L_NO_PROXY] = { "no-proxy", no_argument, NULL, 0 },
 	[L_QUIET] = { "quiet", no_argument, NULL, 0 },
+	[L_VERBOSE] = { "verbose", no_argument, NULL, 0 },
 	{}
 };
 
@@ -566,11 +591,12 @@ int main(int argc, char **argv)
 	int i, ch;
 	int rc;
 	int af = -1;
+	int debug_level = 0;
 
 	signal(SIGPIPE, SIG_IGN);
 	ssl_ctx = uclient_new_ssl_context(&ssl_ops);
 
-	while ((ch = getopt_long(argc, argv, "46cO:P:qsT:U:Y:", longopts, &longopt_idx)) != -1) {
+	while ((ch = getopt_long(argc, argv, "46cO:P:qsT:U:vY:", longopts, &longopt_idx)) != -1) {
 		switch(ch) {
 		case 0:
 			switch (longopt_idx) {
@@ -633,6 +659,9 @@ int main(int argc, char **argv)
 			case L_QUIET:
 				quiet = true;
 				break;
+			case L_VERBOSE:
+				debug_level++;
+				break;
 			default:
 				return usage(progname);
 			}
@@ -668,6 +697,9 @@ int main(int argc, char **argv)
 		case 'T':
 			timeout = atoi(optarg);
 			break;
+		case 'v':
+			debug_level++;
+			break;
 		case 'Y':
 			if (strcmp(optarg, "on") != 0)
 				proxy = false;
@@ -679,6 +711,9 @@ int main(int argc, char **argv)
 
 	argv += optind;
 	argc -= optind;
+
+	if (debug_level)
+		ssl_ops->context_set_debug(ssl_ctx, debug_level, debug_cb, NULL);
 
 	if (verify && !has_cert)
 		default_certs = true;
