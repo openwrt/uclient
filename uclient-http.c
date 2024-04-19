@@ -72,11 +72,14 @@ struct uclient_http {
 	struct ustream_ssl_ctx *ssl_ctx;
 	struct ustream *us;
 
-	struct ustream_fd ufd;
-	struct ustream_ssl ussl;
+	union {
+		struct ustream_fd ufd;
+		struct ustream_ssl ussl;
+	};
 
 	struct uloop_timeout disconnect_t;
 	unsigned int seq;
+	int fd;
 
 	bool ssl_require_validation;
 	bool ssl;
@@ -131,7 +134,7 @@ static int uclient_do_connect(struct uclient_http *uh, const char *port)
 		return -1;
 
 	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-	ustream_fd_init(&uh->ufd, fd);
+	uh->fd = fd;
 
 	sl = sizeof(uh->uc.local_addr);
 	memset(&uh->uc.local_addr, 0, sl);
@@ -148,9 +151,10 @@ static void uclient_http_disconnect(struct uclient_http *uh)
 
 	if (uh->ssl)
 		ustream_free(&uh->ussl.stream);
-	ustream_free(&uh->ufd.stream);
-	if(uh->ufd.fd.fd)
-		close(uh->ufd.fd.fd);
+	else
+		ustream_free(&uh->ufd.stream);
+	if(uh->fd >= 0)
+		close(uh->fd >= 0);
 	uh->us = NULL;
 }
 
@@ -822,6 +826,8 @@ static int uclient_setup_http(struct uclient_http *uh)
 	struct ustream *us = &uh->ufd.stream;
 	int ret;
 
+	memset(&uh->ufd, 0, sizeof(uh->ufd));
+	ustream_fd_init(&uh->ufd, uh->fd);
 	uh->us = us;
 	uh->ssl = false;
 
@@ -897,6 +903,7 @@ static int uclient_setup_https(struct uclient_http *uh)
 	struct ustream *us = &uh->ussl.stream;
 	int ret;
 
+	memset(&uh->ussl, 0, sizeof(uh->ussl));
 	uh->ssl = true;
 	uh->us = us;
 
@@ -915,7 +922,7 @@ static int uclient_setup_https(struct uclient_http *uh)
 	uh->ussl.notify_verify_error = uclient_ssl_notify_verify_error;
 	uh->ussl.notify_connected = uclient_ssl_notify_connected;
 	uh->ussl.server_name = uh->uc.url->host;
-	uh->ssl_ops->init(&uh->ussl, &uh->ufd.stream, uh->ssl_ctx, false);
+	uh->ssl_ops->init_fd(&uh->ussl, uh->fd, uh->ssl_ctx, false);
 	uh->ssl_ops->set_peer_cn(&uh->ussl, uh->uc.url->host);
 
 	return 0;
