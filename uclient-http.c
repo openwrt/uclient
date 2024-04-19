@@ -827,7 +827,6 @@ static int uclient_setup_http(struct uclient_http *uh)
 	int ret;
 
 	memset(&uh->ufd, 0, sizeof(uh->ufd));
-	ustream_fd_init(&uh->ufd, uh->fd);
 	uh->us = us;
 	uh->ssl = false;
 
@@ -839,6 +838,8 @@ static int uclient_setup_http(struct uclient_http *uh)
 	ret = uclient_do_connect(uh, "80");
 	if (ret)
 		return UCLIENT_ERROR_CONNECT;
+
+	ustream_fd_init(&uh->ufd, uh->fd);
 
 	return 0;
 }
