@@ -483,7 +483,7 @@ static const struct uclient_cb cb = {
 	.log_msg = handle_uclient_log_msg,
 };
 
-static int usage(const char *progname)
+static void usage(const char *progname)
 {
 	fprintf(stderr,
 		"Usage: %s [options] <URL>\n"
@@ -510,7 +510,7 @@ static int usage(const char *progname)
 		"	--no-check-certificate		don't validate the server's certificate\n"
 		"	--ciphers=<cipherlist>		Set the cipher list string\n"
 		"\n", progname);
-	return 1;
+	error_ret = 1;
 }
 
 static void init_ca_cert(void)
@@ -524,15 +524,14 @@ static void init_ca_cert(void)
 	globfree(&gl);
 }
 
-static int no_ssl(const char *progname)
+static void no_ssl(const char *progname)
 {
 	fprintf(stderr,
 	        "%s: SSL support not available, please install one of the "
 	        "libustream-.*[ssl|tls] packages as well as the ca-bundle and "
 		"ca-certificates packages.\n",
 	        progname);
-
-	return 1;
+	error_ret = 1;
 }
 
 static void debug_cb(void *priv, int level, const char *msg)
@@ -585,7 +584,7 @@ int main(int argc, char **argv)
 	const char *proxy_url;
 	char *username = NULL;
 	char *password = NULL;
-	struct uclient *cl;
+	struct uclient *cl = NULL;
 	int longopt_idx = 0;
 	bool has_cert = false;
 	int i, ch;
@@ -663,7 +662,8 @@ int main(int argc, char **argv)
 				debug_level++;
 				break;
 			default:
-				return usage(progname);
+				usage(progname);
+				goto out;
 			}
 			break;
 		case '4':
@@ -685,7 +685,8 @@ int main(int argc, char **argv)
 			if (chdir(optarg)) {
 				if (!quiet)
 					perror("Change output directory");
-				exit(1);
+				error_ret = 1;
+				goto out;
 			}
 			break;
 		case 'q':
@@ -705,7 +706,8 @@ int main(int argc, char **argv)
 				proxy = false;
 			break;
 		default:
-			return usage(progname);
+			usage(progname);
+			goto out;
 		}
 	}
 
@@ -718,13 +720,17 @@ int main(int argc, char **argv)
 	if (verify && !has_cert)
 		default_certs = true;
 
-	if (argc < 1)
-		return usage(progname);
+	if (argc < 1) {
+		usage(progname);
+		goto out;
+	}
 
 	if (!ssl_ctx) {
 		for (i = 0; i < argc; i++) {
-			if (!strncmp(argv[i], "https", 5))
-				return no_ssl(progname);
+			if (!strncmp(argv[i], "https", 5)) {
+				no_ssl(progname);
+				goto out;
+			}
 		}
 	}
 
@@ -736,8 +742,10 @@ int main(int argc, char **argv)
 	if (username) {
 		if (password) {
 			rc = asprintf(&auth_str, "%s:%s", username, password);
-			if (rc < 0)
-				return rc;
+			if (rc < 0) {
+				error_ret = 1;
+				goto out;
+			}
 		} else
 			auth_str = username;
 	}
@@ -755,7 +763,8 @@ int main(int argc, char **argv)
 	}
 	if (!cl) {
 		fprintf(stderr, "Failed to allocate uclient context\n");
-		return 1;
+		error_ret = 1;
+		goto out;
 	}
 	if (af >= 0)
 	    uclient_http_set_address_family(cl, af);
@@ -771,11 +780,14 @@ int main(int argc, char **argv)
 	} else {
 		fprintf(stderr, "Failed to send request: %s\n", strerror(rc));
 		error_ret = 4;
+		goto out;
 	}
 
 	uloop_done();
 
-	uclient_free(cl);
+out:
+	if (cl)
+		uclient_free(cl);
 
 	if (output_fd >= 0 && output_fd != STDOUT_FILENO)
 		close(output_fd);
