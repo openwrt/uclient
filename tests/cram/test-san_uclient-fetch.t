@@ -12,6 +12,7 @@ check uclient-fetch usage:
   \t-P <dir>\t\t\tSet directory for output files (esc)
   \t--quiet | -q\t\t\tTurn off status messages (esc)
   \t--continue | -c\t\t\tContinue a partially-downloaded file (esc)
+  \t--header='Header: value'\tAdd HTTP header. Multiple allowed (esc)
   \t--user=<user>\t\t\tHTTP authentication username (esc)
   \t--password=<password>\t\tHTTP authentication password (esc)
   \t--user-agent | -U <str>\t\tSet HTTP user agent (esc)

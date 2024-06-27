@@ -21,6 +21,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <getopt.h>
 #include <fcntl.h>
 #include <glob.h>
@@ -29,6 +30,7 @@
 #include <signal.h>
 
 #include <libubox/blobmsg.h>
+#include <libubox/list.h>
 
 #include "progress.h"
 #include "uclient.h"
@@ -37,6 +39,12 @@
 #ifndef strdupa
 #define strdupa(x) strcpy(alloca(strlen(x)+1),x)
 #endif
+
+struct header {
+	struct list_head list;
+	char *name;
+	char *value;
+};
 
 static const char *user_agent = "uclient-fetch";
 static const char *post_data;
@@ -59,6 +67,7 @@ static char **urls;
 static int n_urls;
 static int timeout;
 static bool resume, cur_resume;
+static LIST_HEAD(headers);
 
 static struct progress pmt;
 static struct uloop_timeout pmt_timer;
@@ -317,6 +326,8 @@ static void check_resume_offset(struct uclient *cl)
 
 static int init_request(struct uclient *cl)
 {
+	struct header *h;
+	char *content_type = "application/x-www-form-urlencoded";
 	int rc;
 
 	out_offset = 0;
@@ -338,18 +349,33 @@ static int init_request(struct uclient *cl)
 		return rc;
 
 	uclient_http_reset_headers(cl);
+
+	list_for_each_entry(h, &headers, list) {
+		if (!strcasecmp(h->name, "Content-Type")) {
+			if (!post_data && !post_file)
+				return -EINVAL;
+
+			content_type = h->value;
+		} else if (!strcasecmp(h->name, "User-Agent")) {
+			user_agent = h->value;
+		} else {
+			uclient_http_set_header(cl, h->name, h->value);
+		}
+	}
+
 	uclient_http_set_header(cl, "User-Agent", user_agent);
+
 	if (cur_resume)
 		check_resume_offset(cl);
 
 	if (post_data) {
-		uclient_http_set_header(cl, "Content-Type", "application/x-www-form-urlencoded");
+		uclient_http_set_header(cl, "Content-Type", content_type);
 		uclient_write(cl, post_data, strlen(post_data));
 	}
 	else if(post_file)
 	{
 		FILE *input_file;
-		uclient_http_set_header(cl, "Content-Type", "application/x-www-form-urlencoded");
+		uclient_http_set_header(cl, "Content-Type", content_type);
 
 		input_file = fopen(post_file, "r");
 		if (!input_file)
@@ -483,7 +509,7 @@ static const struct uclient_cb cb = {
 	.log_msg = handle_uclient_log_msg,
 };
 
-static int usage(const char *progname)
+static void usage(const char *progname)
 {
 	fprintf(stderr,
 		"Usage: %s [options] <URL>\n"
@@ -494,6 +520,7 @@ static int usage(const char *progname)
 		"	-P <dir>			Set directory for output files\n"
 		"	--quiet | -q			Turn off status messages\n"
 		"	--continue | -c			Continue a partially-downloaded file\n"
+		"	--header='Header: value'	Add HTTP header. Multiple allowed\n"
 		"	--user=<user>			HTTP authentication username\n"
 		"	--password=<password>		HTTP authentication password\n"
 		"	--user-agent | -U <str>		Set HTTP user agent\n"
@@ -510,7 +537,7 @@ static int usage(const char *progname)
 		"	--no-check-certificate		don't validate the server's certificate\n"
 		"	--ciphers=<cipherlist>		Set the cipher list string\n"
 		"\n", progname);
-	return 1;
+	error_ret = 1;
 }
 
 static void init_ca_cert(void)
@@ -524,21 +551,37 @@ static void init_ca_cert(void)
 	globfree(&gl);
 }
 
-static int no_ssl(const char *progname)
+static void no_ssl(const char *progname)
 {
 	fprintf(stderr,
 	        "%s: SSL support not available, please install one of the "
 	        "libustream-.*[ssl|tls] packages as well as the ca-bundle and "
 		"ca-certificates packages.\n",
 	        progname);
-
-	return 1;
+	error_ret = 1;
 }
 
 static void debug_cb(void *priv, int level, const char *msg)
 {
 	fprintf(stderr, "%s\n", msg);
 }
+
+static bool is_valid_header(char *str)
+{
+	char *tmp = str;
+
+	/* First character must be a letter */
+	if (!isalpha(*tmp))
+		return false;
+
+	/* Subsequent characters must be letters, numbers or dashes */
+	while (*(++tmp) != '\0') {
+		if (!isalnum(*tmp) && *tmp != '-')
+			return false;
+	}
+
+	return true;
+};
 
 enum {
 	L_NO_CHECK_CERTIFICATE,
@@ -556,6 +599,7 @@ enum {
 	L_NO_PROXY,
 	L_QUIET,
 	L_VERBOSE,
+	L_HEADER,
 };
 
 static const struct option longopts[] = {
@@ -574,6 +618,7 @@ static const struct option longopts[] = {
 	[L_NO_PROXY] = { "no-proxy", no_argument, NULL, 0 },
 	[L_QUIET] = { "quiet", no_argument, NULL, 0 },
 	[L_VERBOSE] = { "verbose", no_argument, NULL, 0 },
+	[L_HEADER] = { "header", required_argument, NULL, 0 },
 	{}
 };
 
@@ -585,9 +630,11 @@ int main(int argc, char **argv)
 	const char *proxy_url;
 	char *username = NULL;
 	char *password = NULL;
-	struct uclient *cl;
+	struct uclient *cl = NULL;
 	int longopt_idx = 0;
 	bool has_cert = false;
+	struct header *h, *th;
+	char *tmp;
 	int i, ch;
 	int rc;
 	int af = -1;
@@ -662,8 +709,33 @@ int main(int argc, char **argv)
 			case L_VERBOSE:
 				debug_level++;
 				break;
+			case L_HEADER:
+				tmp = strchr(optarg, ':');
+				if (!tmp) {
+					usage(progname);
+					goto out;
+				}
+				*(tmp++) = '\0';
+				while (isspace(*tmp))
+					++tmp;
+
+				if (*tmp == '\0' || !is_valid_header(optarg) || strchr(tmp, '\n')) {
+					usage(progname);
+					goto out;
+				}
+				h = malloc(sizeof(*h));
+				if (!h) {
+					perror("Set HTTP header");
+					error_ret = 1;
+					goto out;
+				}
+				h->name = optarg;
+				h->value = tmp;
+				list_add_tail(&h->list, &headers);
+				break;
 			default:
-				return usage(progname);
+				usage(progname);
+				goto out;
 			}
 			break;
 		case '4':
@@ -685,7 +757,8 @@ int main(int argc, char **argv)
 			if (chdir(optarg)) {
 				if (!quiet)
 					perror("Change output directory");
-				exit(1);
+				error_ret = 1;
+				goto out;
 			}
 			break;
 		case 'q':
@@ -705,7 +778,8 @@ int main(int argc, char **argv)
 				proxy = false;
 			break;
 		default:
-			return usage(progname);
+			usage(progname);
+			goto out;
 		}
 	}
 
@@ -718,13 +792,17 @@ int main(int argc, char **argv)
 	if (verify && !has_cert)
 		default_certs = true;
 
-	if (argc < 1)
-		return usage(progname);
+	if (argc < 1) {
+		usage(progname);
+		goto out;
+	}
 
 	if (!ssl_ctx) {
 		for (i = 0; i < argc; i++) {
-			if (!strncmp(argv[i], "https", 5))
-				return no_ssl(progname);
+			if (!strncmp(argv[i], "https", 5)) {
+				no_ssl(progname);
+				goto out;
+			}
 		}
 	}
 
@@ -736,8 +814,10 @@ int main(int argc, char **argv)
 	if (username) {
 		if (password) {
 			rc = asprintf(&auth_str, "%s:%s", username, password);
-			if (rc < 0)
-				return rc;
+			if (rc < 0) {
+				error_ret = 1;
+				goto out;
+			}
 		} else
 			auth_str = username;
 	}
@@ -755,7 +835,8 @@ int main(int argc, char **argv)
 	}
 	if (!cl) {
 		fprintf(stderr, "Failed to allocate uclient context\n");
-		return 1;
+		error_ret = 1;
+		goto out;
 	}
 	if (af >= 0)
 	    uclient_http_set_address_family(cl, af);
@@ -771,17 +852,25 @@ int main(int argc, char **argv)
 	} else {
 		fprintf(stderr, "Failed to send request: %s\n", strerror(rc));
 		error_ret = 4;
+		goto out;
 	}
 
 	uloop_done();
 
-	uclient_free(cl);
+out:
+	if (cl)
+		uclient_free(cl);
 
 	if (output_fd >= 0 && output_fd != STDOUT_FILENO)
 		close(output_fd);
 
 	if (ssl_ctx)
 		ssl_ops->context_free(ssl_ctx);
+
+	list_for_each_entry_safe(h, th, &headers, list) {
+		list_del(&h->list);
+		free(h);
+	}
 
 	return error_ret;
 }
