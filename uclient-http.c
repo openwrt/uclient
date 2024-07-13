@@ -40,11 +40,19 @@ enum auth_type {
 };
 
 enum request_type {
+	REQ_COPY,
+	REQ_DELETE,
 	REQ_GET,
 	REQ_HEAD,
+	REQ_LOCK,
+	REQ_MKCOL,
+	REQ_MOVE,
+	REQ_OPTIONS,
 	REQ_POST,
+	REQ_PROPFIND,
+	REQ_PROPPATCH,
 	REQ_PUT,
-	REQ_DELETE,
+	REQ_UNLOCK,
 	__REQ_MAX
 };
 
@@ -57,12 +65,21 @@ enum http_state {
 	HTTP_STATE_ERROR,
 };
 
+// Must be sorted alphabetically
 static const char * const request_types[__REQ_MAX] = {
+	[REQ_COPY] = "COPY",
+	[REQ_DELETE] = "DELETE",
 	[REQ_GET] = "GET",
 	[REQ_HEAD] = "HEAD",
+	[REQ_LOCK] = "LOCK",
+	[REQ_MKCOL] = "MKCOL",
+	[REQ_MOVE] = "MOVE",
+	[REQ_OPTIONS] = "OPTIONS",
 	[REQ_POST] = "POST",
+	[REQ_PROPFIND] = "PROPFIND",
+	[REQ_PROPPATCH] = "PROPPATCH",
 	[REQ_PUT] = "PUT",
-	[REQ_DELETE] = "DELETE",
+	[REQ_UNLOCK] = "UNLOCK",
 };
 
 struct uclient_http {
@@ -296,12 +313,12 @@ static void uclient_http_process_headers(struct uclient_http *uh)
 static bool uclient_request_supports_body(enum request_type req_type)
 {
 	switch (req_type) {
-	case REQ_POST:
-	case REQ_PUT:
-	case REQ_DELETE:
-		return true;
-	default:
+	case REQ_GET:
+	case REQ_HEAD:
+	case REQ_OPTIONS:
 		return false;
+	default:
+		return true;
 	}
 }
 
@@ -1003,11 +1020,15 @@ uclient_http_set_request_type(struct uclient *cl, const char *type)
 		return -1;
 
 	for (i = 0; i < ARRAY_SIZE(request_types); i++) {
-		if (strcmp(request_types[i], type) != 0)
+		int c = strcmp(request_types[i], type);
+		if (c < 0) {
 			continue;
-
-		uh->req_type = i;
-		return 0;
+		} else if (c == 0) {
+			uh->req_type = i;
+			return 0;
+		} else {
+			return -1;
+		}
 	}
 
 	return -1;
