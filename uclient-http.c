@@ -154,7 +154,7 @@ static void uclient_http_disconnect(struct uclient_http *uh)
 	else
 		ustream_free(&uh->ufd.stream);
 	if(uh->fd >= 0)
-		close(uh->fd >= 0);
+		close(uh->fd);
 	uh->us = NULL;
 }
 
