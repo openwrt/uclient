@@ -53,6 +53,7 @@ enum http_state {
 	HTTP_STATE_HEADERS_SENT,
 	HTTP_STATE_REQUEST_DONE,
 	HTTP_STATE_RECV_HEADERS,
+	HTTP_STATE_PROCESS_HEADERS,
 	HTTP_STATE_RECV_DATA,
 	HTTP_STATE_ERROR,
 };
@@ -78,6 +79,7 @@ struct uclient_http {
 	};
 
 	struct uloop_timeout disconnect_t;
+	struct uloop_timeout process_headers_t;
 	unsigned int seq;
 	int fd;
 
@@ -116,6 +118,7 @@ static const char * const uclient_http_prefix[] = {
 };
 
 static int uclient_http_connect(struct uclient *cl);
+static void __uclient_notify_read(struct uclient_http *uh);
 
 static int uclient_do_connect(struct uclient_http *uh, const char *port)
 {
@@ -146,6 +149,7 @@ static int uclient_do_connect(struct uclient_http *uh, const char *port)
 static void uclient_http_disconnect(struct uclient_http *uh)
 {
 	uloop_timeout_cancel(&uh->disconnect_t);
+	uloop_timeout_cancel(&uh->process_headers_t);
 	if (!uh->us)
 		return;
 
@@ -637,14 +641,11 @@ uclient_http_send_headers(struct uclient_http *uh)
 	return 0;
 }
 
-static void uclient_http_headers_complete(struct uclient_http *uh)
+static void uclient_http_process_headers_cb(struct uloop_timeout *timeout)
 {
+	struct uclient_http *uh = container_of(timeout, struct uclient_http, process_headers_t);
 	enum auth_type auth_type = uh->auth_type;
 	unsigned int seq = uh->seq;
-
-	uh->state = HTTP_STATE_RECV_DATA;
-	uh->uc.meta = uh->meta.head;
-	uclient_http_process_headers(uh);
 
 	if (auth_type == AUTH_TYPE_UNKNOWN && uh->uc.status_code == 401 &&
 	    (uh->req_type == REQ_HEAD || uh->req_type == REQ_GET)) {
@@ -653,6 +654,8 @@ static void uclient_http_headers_complete(struct uclient_http *uh)
 		uh->state = HTTP_STATE_REQUEST_DONE;
 		return;
 	}
+
+	uh->state = HTTP_STATE_RECV_DATA;
 
 	if (uh->uc.cb->header_done)
 		uh->uc.cb->header_done(&uh->uc);
@@ -664,7 +667,20 @@ static void uclient_http_headers_complete(struct uclient_http *uh)
 			uh->content_length == 0) {
 		uh->eof = true;
 		uclient_notify_eof(uh);
+		return;
 	}
+
+	__uclient_notify_read(uh);
+}
+
+static void uclient_http_headers_complete(struct uclient_http *uh)
+{
+	uh->state = HTTP_STATE_PROCESS_HEADERS;
+	uh->uc.meta = uh->meta.head;
+	uclient_http_process_headers(uh);
+
+	uh->process_headers_t.cb = uclient_http_process_headers_cb;
+	uloop_timeout_set(&uh->process_headers_t, 1);
 }
 
 static void uclient_parse_http_line(struct uclient_http *uh, char *data)
@@ -730,6 +746,9 @@ static void __uclient_notify_read(struct uclient_http *uh)
 	if (uh->state < HTTP_STATE_REQUEST_DONE || uh->state == HTTP_STATE_ERROR)
 		return;
 
+	if (uh->state == HTTP_STATE_PROCESS_HEADERS)
+		return;
+
 	data = ustream_get_read_buf(uh->us, &len);
 	if (!data || !len)
 		return;
@@ -773,7 +792,7 @@ static void __uclient_notify_read(struct uclient_http *uh)
 				return;
 
 			data = ustream_get_read_buf(uh->us, &len);
-		} while (data && uh->state < HTTP_STATE_RECV_DATA);
+		} while (data && uh->state == HTTP_STATE_RECV_HEADERS);
 
 		if (!len)
 			return;
@@ -906,6 +925,7 @@ static int uclient_setup_https(struct uclient_http *uh)
 	int ret;
 
 	memset(&uh->ussl, 0, sizeof(uh->ussl));
+	uh->ufd.fd.fd = -1;
 	uh->ssl = true;
 	uh->us = us;
 
@@ -933,9 +953,10 @@ static int uclient_setup_https(struct uclient_http *uh)
 static int uclient_http_connect(struct uclient *cl)
 {
 	struct uclient_http *uh = container_of(cl, struct uclient_http, uc);
+	bool ssl = cl->url->prefix == PREFIX_HTTPS;
 	int ret;
 
-	if (!cl->eof || uh->disconnect || uh->connection_close)
+	if (!cl->eof || uh->disconnect || uh->connection_close || uh->ssl != ssl)
 		uclient_http_disconnect(uh);
 
 	uclient_http_init_request(uh);
@@ -943,7 +964,7 @@ static int uclient_http_connect(struct uclient *cl)
 	if (uh->us)
 		return 0;
 
-	uh->ssl = cl->url->prefix == PREFIX_HTTPS;
+	uh->ssl = ssl;
 
 	if (uh->ssl)
 		ret = uclient_setup_https(uh);
@@ -1199,7 +1220,8 @@ int uclient_http_redirect(struct uclient *cl)
 	if (uclient_http_connect(cl))
 		return -1;
 
-	uclient_http_request_done(cl);
+	if (uclient_request(cl))
+		return -1;
 
 	return true;
 }
