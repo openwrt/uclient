@@ -640,7 +640,7 @@ uclient_http_send_headers(struct uclient_http *uh)
 static void uclient_http_headers_complete(struct uclient_http *uh)
 {
 	enum auth_type auth_type = uh->auth_type;
-	int seq = uh->uc.seq;
+	unsigned int seq = uh->seq;
 
 	uh->state = HTTP_STATE_RECV_DATA;
 	uh->uc.meta = uh->meta.head;
@@ -657,7 +657,7 @@ static void uclient_http_headers_complete(struct uclient_http *uh)
 	if (uh->uc.cb->header_done)
 		uh->uc.cb->header_done(&uh->uc);
 
-	if (uh->eof || seq != uh->uc.seq)
+	if (uh->eof || seq != uh->seq)
 		return;
 
 	if (uh->req_type == REQ_HEAD || uh->uc.status_code == 204 ||
