@@ -46,6 +46,13 @@ enum request_type {
 	REQ_POST,
 	REQ_PUT,
 	REQ_DELETE,
+	REQ_COPY,
+	REQ_LOCK,
+	REQ_MKCOL,
+	REQ_MOVE,
+	REQ_PROPFIND,
+	REQ_PROPPATCH,
+	REQ_UNLOCK,
 	__REQ_MAX
 };
 
@@ -66,6 +73,13 @@ static const char * const request_types[__REQ_MAX] = {
 	[REQ_POST] = "POST",
 	[REQ_PUT] = "PUT",
 	[REQ_DELETE] = "DELETE",
+	[REQ_COPY] = "COPY",
+	[REQ_LOCK] = "LOCK",
+	[REQ_MKCOL] = "MKCOL",
+	[REQ_MOVE] = "MOVE",
+	[REQ_PROPFIND] = "PROPFIND",
+	[REQ_PROPPATCH] = "PROPPATCH",
+	[REQ_UNLOCK] = "UNLOCK",
 };
 
 struct uclient_http {
@@ -306,6 +320,10 @@ static bool uclient_request_supports_body(enum request_type req_type)
 	case REQ_POST:
 	case REQ_PUT:
 	case REQ_DELETE:
+	case REQ_PROPFIND:
+	case REQ_PROPPATCH:
+	case REQ_LOCK:
+	case REQ_MKCOL:
 		return true;
 	default:
 		return false;
