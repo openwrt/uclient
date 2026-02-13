@@ -647,6 +647,8 @@ static void uclient_http_process_headers_cb(struct uloop_timeout *timeout)
 	enum auth_type auth_type = uh->auth_type;
 	unsigned int seq = uh->seq;
 
+	uclient_http_process_headers(uh);
+
 	if (auth_type == AUTH_TYPE_UNKNOWN && uh->uc.status_code == 401 &&
 	    (uh->req_type == REQ_HEAD || uh->req_type == REQ_GET)) {
 		uclient_http_connect(&uh->uc);
@@ -677,7 +679,6 @@ static void uclient_http_headers_complete(struct uclient_http *uh)
 {
 	uh->state = HTTP_STATE_PROCESS_HEADERS;
 	uh->uc.meta = uh->meta.head;
-	uclient_http_process_headers(uh);
 
 	uh->process_headers_t.cb = uclient_http_process_headers_cb;
 	uloop_timeout_set(&uh->process_headers_t, 1);
