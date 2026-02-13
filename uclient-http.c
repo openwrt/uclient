@@ -42,6 +42,7 @@ enum auth_type {
 enum request_type {
 	REQ_GET,
 	REQ_HEAD,
+	REQ_OPTIONS,
 	REQ_POST,
 	REQ_PUT,
 	REQ_DELETE,
@@ -61,6 +62,7 @@ enum http_state {
 static const char * const request_types[__REQ_MAX] = {
 	[REQ_GET] = "GET",
 	[REQ_HEAD] = "HEAD",
+	[REQ_OPTIONS] = "OPTIONS",
 	[REQ_POST] = "POST",
 	[REQ_PUT] = "PUT",
 	[REQ_DELETE] = "DELETE",
