@@ -209,6 +209,13 @@ static void uclient_http_request_disconnect(struct uclient *cl)
 	uloop_timeout_set(&uh->disconnect_t, 1);
 }
 
+static bool uclient_http_bodyless_response(struct uclient_http *uh)
+{
+	return uh->req_type == REQ_HEAD ||
+	       uh->uc.status_code == 204 ||
+	       uh->uc.status_code == 304;
+}
+
 static void uclient_notify_eof(struct uclient_http *uh)
 {
 	struct ustream *us = uh->us;
@@ -224,8 +231,9 @@ static void uclient_notify_eof(struct uclient_http *uh)
 			return;
 	}
 
-	if ((uh->content_length < 0 && uh->read_chunked >= 0) ||
-			uh->content_length == 0)
+	if (uclient_http_bodyless_response(uh) ||
+	    (uh->content_length < 0 && uh->read_chunked >= 0) ||
+	    uh->content_length == 0)
 		uh->uc.data_eof = true;
 
 	uclient_backend_set_eof(&uh->uc);
@@ -685,8 +693,7 @@ static void uclient_http_process_headers_cb(struct uloop_timeout *timeout)
 	if (uh->eof || seq != uh->seq)
 		return;
 
-	if (uh->req_type == REQ_HEAD || uh->uc.status_code == 204 ||
-			uh->content_length == 0) {
+	if (uclient_http_bodyless_response(uh) || uh->content_length == 0) {
 		uh->eof = true;
 		uclient_notify_eof(uh);
 		return;
