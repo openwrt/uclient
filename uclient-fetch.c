@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <signal.h>
+#include <errno.h>
 
 #include <libubox/blobmsg.h>
 #include <libubox/list.h>
@@ -272,7 +273,7 @@ static void read_data_cb(struct uclient *cl)
 {
 	char buf[256];
 	ssize_t n;
-	int len;
+	int len, offset;
 
 	if (!no_output && output_fd < 0)
 		return;
@@ -283,10 +284,22 @@ static void read_data_cb(struct uclient *cl)
 			return;
 
 		out_bytes += len;
-		if (!no_output) {
-			n = write(output_fd, buf, len);
-			if (n < 0)
+		if (no_output)
+			continue;
+
+		offset = 0;
+		while (offset < len) {
+			n = write(output_fd, buf + offset, len - offset);
+			if (n < 0) {
+				if (errno == EINTR)
+					continue;
+				if (!quiet)
+					perror("Write to output file failed");
+				error_ret = 2;
+				request_done(cl);
 				return;
+			}
+			offset += n;
 		}
 	}
 }
