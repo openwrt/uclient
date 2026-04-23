@@ -774,7 +774,8 @@ int main(int argc, char **argv)
 				while (isspace((unsigned char)*tmp))
 					++tmp;
 
-				if (*tmp == '\0' || !is_valid_header(optarg) || strchr(tmp, '\n')) {
+				if (*tmp == '\0' || !is_valid_header(optarg) ||
+				    strchr(tmp, '\n') || strchr(tmp, '\r')) {
 					usage(progname);
 					goto out;
 				}
