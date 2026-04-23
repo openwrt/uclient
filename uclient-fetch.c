@@ -249,7 +249,7 @@ static void header_done_cb(struct uclient *cl)
 			break;
 
 		if (tb[H_LEN])
-			out_len = strtoul(blobmsg_get_string(tb[H_LEN]), NULL, 10);
+			out_len = strtoull(blobmsg_get_string(tb[H_LEN]), NULL, 10);
 
 		output_fd = open_output_file(cl->url->location, resume_offset);
 		if (output_fd < 0) {
