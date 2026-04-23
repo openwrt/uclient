@@ -889,14 +889,11 @@ int main(int argc, char **argv)
 	uloop_init();
 
 	if (username) {
-		if (password) {
-			rc = asprintf(&auth_str, "%s:%s", username, password);
-			if (rc < 0) {
-				error_ret = 1;
-				goto out;
-			}
-		} else
-			auth_str = username;
+		rc = asprintf(&auth_str, "%s:%s", username, password ? password : "");
+		if (rc < 0) {
+			error_ret = 1;
+			goto out;
+		}
 	}
 
 	if (!quiet)
@@ -948,6 +945,8 @@ out:
 		list_del(&h->list);
 		free(h);
 	}
+
+	free(auth_str);
 
 	return error_ret;
 }
