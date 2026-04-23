@@ -346,6 +346,7 @@ int uclient_connect(struct uclient *cl)
 void uclient_free(struct uclient *cl)
 {
 	struct uclient_url *url = cl->url;
+	struct uclient_url *proxy_url = cl->proxy_url;
 
 	if (cl->backend->free)
 		cl->backend->free(cl);
@@ -353,6 +354,7 @@ void uclient_free(struct uclient *cl)
 		free(cl);
 
 	free(url);
+	free(proxy_url);
 }
 
 int uclient_write(struct uclient *cl, const char *buf, int len)
