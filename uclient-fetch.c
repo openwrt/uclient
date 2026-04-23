@@ -68,6 +68,7 @@ static char *auth_str;
 static char **urls;
 static int n_urls;
 static int timeout;
+static int redirects;
 static bool resume, cur_resume;
 static LIST_HEAD(headers);
 
@@ -182,9 +183,8 @@ static void header_done_cb(struct uclient *cl)
 	};
 	struct blob_attr *tb[__H_MAX];
 	uint64_t resume_offset = 0, resume_end, resume_size;
-	static int retries;
 
-	if (retries < 10) {
+	if (redirects < 10) {
 		int ret = uclient_http_redirect(cl);
 		if (ret < 0) {
 			if (!quiet)
@@ -197,7 +197,7 @@ static void header_done_cb(struct uclient *cl)
 			if (!quiet)
 				fprintf(stderr, "Redirected to %s on %s\n", cl->url->location, cl->url->host);
 
-			retries++;
+			redirects++;
 			return;
 		}
 	}
@@ -335,6 +335,7 @@ static int init_request(struct uclient *cl)
 	out_offset = 0;
 	out_bytes = 0;
 	out_len = 0;
+	redirects = 0;
 	uclient_http_set_ssl_ctx(cl, ssl_ops, ssl_ctx, verify);
 
 	if (timeout)
