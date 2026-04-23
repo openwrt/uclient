@@ -22,6 +22,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <limits.h>
 
 #include <libubox/ustream.h>
 #include <libubox/ustream-ssl.h>
@@ -310,8 +312,18 @@ static void uclient_http_process_headers(struct uclient_http *uh)
 		uh->connection_close = true;
 
 	cur = tb[HTTP_HDR_CONTENT_LENGTH];
-	if (cur)
-		uh->content_length = strtoul(blobmsg_data(cur), NULL, 10);
+	if (cur) {
+		const char *val = blobmsg_data(cur);
+		char *end;
+		long long len;
+
+		errno = 0;
+		len = strtoll(val, &end, 10);
+		if (end == val || *end || errno || len < 0 || len > LONG_MAX)
+			uh->content_length = -1;
+		else
+			uh->content_length = len;
+	}
 
 	cur = tb[HTTP_HDR_AUTH];
 	if (cur) {
@@ -1156,7 +1168,8 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 	read_len = 0;
 
 	if (uh->read_chunked == 0) {
-		char *sep;
+		char *sep, *end;
+		long long chunk_len;
 
 		if (data[0] == '\r' && data[1] == '\n') {
 			data += 2;
@@ -1168,7 +1181,13 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 			return 0;
 
 		*sep = 0;
-		uh->read_chunked = strtoul(data, NULL, 16);
+		errno = 0;
+		chunk_len = strtoll(data, &end, 16);
+		if (end == data || chunk_len < 0 || chunk_len > LONG_MAX || errno) {
+			uclient_http_error(uh, UCLIENT_ERROR_UNKNOWN);
+			return 0;
+		}
+		uh->read_chunked = chunk_len;
 
 		read_len += sep + 2 - data;
 		data = sep + 2;
