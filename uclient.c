@@ -257,8 +257,10 @@ struct uclient *uclient_new(const char *url_str, const char *auth_str, const str
 		return NULL;
 
 	cl = url->backend->alloc();
-	if (!cl)
+	if (!cl) {
+		free(url);
 		return NULL;
+	}
 
 	cl->backend = url->backend;
 	cl->cb = cb;
