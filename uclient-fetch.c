@@ -591,12 +591,12 @@ static bool is_valid_header(char *str)
 	char *tmp = str;
 
 	/* First character must be a letter */
-	if (!isalpha(*tmp))
+	if (!isalpha((unsigned char)*tmp))
 		return false;
 
 	/* Subsequent characters must be letters, numbers or dashes */
 	while (*(++tmp) != '\0') {
-		if (!isalnum(*tmp) && *tmp != '-')
+		if (!isalnum((unsigned char)*tmp) && *tmp != '-')
 			return false;
 	}
 
@@ -771,7 +771,7 @@ int main(int argc, char **argv)
 					goto out;
 				}
 				*(tmp++) = '\0';
-				while (isspace(*tmp))
+				while (isspace((unsigned char)*tmp))
 					++tmp;
 
 				if (*tmp == '\0' || !is_valid_header(optarg) || strchr(tmp, '\n')) {

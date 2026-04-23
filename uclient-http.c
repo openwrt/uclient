@@ -531,7 +531,7 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 		const char **dest = NULL;
 		const char *tmp;
 
-		while (*next && isspace(*next))
+		while (*next && isspace((unsigned char)*next))
 			next++;
 
 		if (strmatch(&next, "realm"))
@@ -765,10 +765,10 @@ static void uclient_parse_http_line(struct uclient_http *uh, char *data)
 	*(sep++) = 0;
 
 	for (name = data; *name; name++)
-		*name = tolower(*name);
+		*name = tolower((unsigned char)*name);
 
 	name = data;
-	while (isspace(*sep))
+	while (isspace((unsigned char)*sep))
 		sep++;
 
 	blobmsg_add_string(&uh->meta, name, sep);
@@ -815,7 +815,7 @@ static void __uclient_notify_read(struct uclient_http *uh)
 				if (!*next)
 					return;
 
-				if (isspace(*next) && *next != '\r' && *next != '\n') {
+				if (isspace((unsigned char)*next) && *next != '\r' && *next != '\n') {
 					sep[0] = ' ';
 					if (sep + 1 < next)
 						sep[1] = ' ';

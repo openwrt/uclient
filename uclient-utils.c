@@ -78,7 +78,7 @@ int uclient_urldecode(const char *in, char *out, bool decode_plus)
 
 	while ((c = *(in++))) {
 		if (c == '%') {
-			if (!isxdigit(in[0]) || !isxdigit(in[1]))
+			if (!isxdigit((unsigned char)in[0]) || !isxdigit((unsigned char)in[1]))
 				return -1;
 
 			dec[0] = in[0];
