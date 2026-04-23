@@ -508,6 +508,9 @@ uc_uclient_new(uc_vm_t *vm, size_t nargs)
 		return NULL;
 
 	ucl = calloc(1, sizeof(*ucl));
+	if (!ucl)
+		return NULL;
+
 	if (ucv_property_get(cb, "data_read"))
 		ucl->cb.data_read = uc_cb_data_read;
 	if (ucv_property_get(cb, "get_post_data"))
