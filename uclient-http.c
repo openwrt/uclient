@@ -509,6 +509,10 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 
 	/* skip auth type */
 	strsep(&buf, " ");
+	if (!buf) {
+		err = -EINVAL;
+		goto fail;
+	}
 
 	next = buf;
 	while (*next) {
