@@ -169,12 +169,11 @@ char *uclient_get_url_filename(const char *url, const char *default_name)
 	while (len > 0 && url[len - 1] == '/')
 		len--;
 
-	for (str = url + len - 1; str >= url; str--) {
-		if (*str == '/')
-			break;
-	}
+	/* walk back to just after the last '/', without forming url - 1 */
+	str = url + len;
+	while (str > url && str[-1] != '/')
+		str--;
 
-	str++;
 	len -= str - url;
 
 	if (len > 0)
