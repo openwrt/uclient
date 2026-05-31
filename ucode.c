@@ -255,18 +255,18 @@ __uc_uclient_cb(struct uclient *cl, const char *name, uc_value_t *arg)
 {
 	struct uc_uclient_priv *ucl = cl->priv;
 	uc_vm_t *vm = uc_vm;
-	uc_value_t *cb, *cb_obj;
+	uc_value_t *cb, *cb_obj, *ret = NULL;
 
 	cb_obj = ucv_array_get(registry, ucl->idx);
 	if (!cb_obj)
-		return NULL;
+		goto out;
 
 	cb = ucv_property_get(cb_obj, name);
 	if (!cb)
-		return NULL;
+		goto out;
 
 	if (!ucv_is_callable(cb))
-		return NULL;
+		goto out;
 
 	uc_vm_stack_push(vm, ucv_get(ucl->resource));
 	uc_vm_stack_push(vm, ucv_get(cb));
@@ -277,10 +277,17 @@ __uc_uclient_cb(struct uclient *cl, const char *name, uc_value_t *arg)
 	if (uc_vm_call(vm, true, !!arg + 1) != EXCEPTION_NONE) {
 		if (vm->exhandler)
 			vm->exhandler(vm, &vm->exception);
-		return NULL;
+		goto out;
 	}
 
-	return uc_vm_stack_pop(vm);
+	ret = uc_vm_stack_pop(vm);
+
+out:
+	/* the callers hand over their reference on arg */
+	if (arg)
+		ucv_put(arg);
+
+	return ret;
 }
 
 static void
