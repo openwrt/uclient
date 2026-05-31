@@ -430,6 +430,27 @@ static char *digest_sep(char **str)
 	return cur;
 }
 
+/*
+ * Parse a digest auth parameter value. RFC 7616 quotes realm/nonce/opaque/qop,
+ * but some servers send them as bare tokens; accept both forms.
+ */
+static char *digest_value(char **str)
+{
+	char *val, *end;
+
+	if (**str == '"')
+		return digest_unquote_sep(str);
+
+	val = digest_sep(str);
+
+	/* trim trailing whitespace from the unquoted token */
+	end = val + strlen(val);
+	while (end > val && isspace((unsigned char)end[-1]))
+		*--end = 0;
+
+	return val;
+}
+
 static bool strmatch(char **str, const char *prefix)
 {
 	int len = strlen(prefix);
@@ -570,7 +591,7 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 			continue;
 		}
 
-		*dest = digest_unquote_sep(&next);
+		*dest = digest_value(&next);
 	}
 
 	if (!realm || !data.qop || !data.nonce) {
