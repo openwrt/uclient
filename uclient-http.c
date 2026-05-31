@@ -431,22 +431,26 @@ static bool strmatch(char **str, const char *prefix)
 	return true;
 }
 
-static void
+static int
 get_cnonce(char *dest)
 {
 	uint32_t val = 0;
 	FILE *f;
-	size_t n;
 
 	f = fopen("/dev/urandom", "r");
-	if (f) {
-		n = fread(&val, sizeof(val), 1, f);
+	if (!f)
+		return -EIO;
+
+	if (fread(&val, sizeof(val), 1, f) != 1) {
 		fclose(f);
-		if (n != 1)
-			return;
+		return -EIO;
 	}
 
+	fclose(f);
+
 	bin_to_hex(dest, &val, sizeof(val));
+
+	return 0;
 }
 
 static void add_field(char **buf, int *ofs, int *len, const char *name, const char *val)
@@ -564,7 +568,9 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 	}
 
 	sprintf(nc_str, "%08x", uh->nc++);
-	get_cnonce(cnonce_str);
+	err = get_cnonce(cnonce_str);
+	if (err)
+		goto fail;
 
 	data.qop = "auth";
 	data.uri = url->location;
