@@ -350,6 +350,12 @@ void uclient_free(struct uclient *cl)
 	struct uclient_url *url = cl->url;
 	struct uclient_url *proxy_url = cl->proxy_url;
 
+	/* Cancel timers embedded in cl before the backend frees the memory,
+	 * otherwise a still-pending timeout would reference freed memory. */
+	uloop_timeout_cancel(&cl->connection_timeout);
+	uloop_timeout_cancel(&cl->timeout);
+	uloop_timeout_cancel(&cl->read_notify);
+
 	if (cl->backend->free)
 		cl->backend->free(cl);
 	else
