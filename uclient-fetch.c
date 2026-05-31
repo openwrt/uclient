@@ -430,6 +430,7 @@ static void request_done(struct uclient *cl)
 			uclient_set_url(cl, *urls, auth_str);
 		}
 		n_urls--;
+		urls++;
 		cur_resume = resume;
 		error_ret = init_request(cl);
 		if (error_ret == 0)
