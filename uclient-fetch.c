@@ -921,9 +921,9 @@ int main(int argc, char **argv)
 
 	proxy_url = get_proxy_url(argv[0]);
 	if (proxy_url) {
-		cl = uclient_new(proxy_url, auth_str, &cb);
+		cl = uclient_new(proxy_url, NULL, &cb);
 		if (cl)
-		    uclient_set_proxy_url(cl, argv[0], NULL);
+		    uclient_set_proxy_url(cl, argv[0], auth_str);
 	} else {
 		cl = uclient_new(argv[0], auth_str, &cb);
 	}
