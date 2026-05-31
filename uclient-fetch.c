@@ -422,6 +422,11 @@ static void request_done(struct uclient *cl)
 	const char *proxy_url;
 
 	if (n_urls) {
+		/* close the finished file before starting the next URL */
+		if (output_fd >= 0 && output_fd != STDOUT_FILENO) {
+			close(output_fd);
+			output_fd = -1;
+		}
 		proxy_url = get_proxy_url(*urls);
 		if (proxy_url) {
 			uclient_set_url(cl, proxy_url, NULL);
