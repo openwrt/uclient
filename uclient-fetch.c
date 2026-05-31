@@ -231,6 +231,7 @@ static void header_done_cb(struct uclient *cl)
 			if (!quiet)
 				fprintf(stderr, "Content-Range header is missing\n");
 			error_ret = 8;
+			request_done(cl);
 			break;
 		}
 
@@ -240,6 +241,7 @@ static void header_done_cb(struct uclient *cl)
 			if (!quiet)
 				fprintf(stderr, "Content-Range header is invalid\n");
 			error_ret = 8;
+			request_done(cl);
 			break;
 		}
 		/* fall through */
