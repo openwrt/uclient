@@ -1250,7 +1250,7 @@ int uclient_http_redirect(struct uclient *cl)
 		.name = "location",
 		.type = BLOBMSG_TYPE_STRING,
 	};
-	struct uclient_url *url = cl->url;
+	struct uclient_url *url = cl->proxy_url ? cl->proxy_url : cl->url;
 	struct blob_attr *tb;
 
 	if (cl->backend != &uclient_backend_http)
