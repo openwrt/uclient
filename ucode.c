@@ -58,7 +58,6 @@ static void free_uclient(void *ptr)
 	if (ucl->ssl_ctx)
 		ucl->ssl_ops->context_free(ucl->ssl_ctx);
 	ucv_array_set(registry, ucl->idx, NULL);
-	ucv_array_set(registry, ucl->idx + 1, NULL);
 	uclient_free(cl);
 	free(ucl);
 }
