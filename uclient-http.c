@@ -711,7 +711,7 @@ static void uclient_http_process_headers_cb(struct uloop_timeout *timeout)
 	uclient_http_process_headers(uh);
 
 	if (auth_type == AUTH_TYPE_UNKNOWN && uh->uc.status_code == 401 &&
-	    (uh->req_type == REQ_HEAD || uh->req_type == REQ_GET)) {
+	    !uclient_request_supports_body(uh->req_type)) {
 		uclient_http_connect(&uh->uc);
 		uclient_http_send_headers(uh);
 		uh->state = HTTP_STATE_REQUEST_DONE;
