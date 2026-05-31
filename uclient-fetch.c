@@ -467,7 +467,12 @@ static void request_done(struct uclient *cl)
 
 static void eof_cb(struct uclient *cl)
 {
-	if (!quiet) {
+	/*
+	 * The progress meter is only set up in open_output_file(), which is
+	 * skipped when there is no output (e.g. --spider). Don't touch pmt in
+	 * that case, it is still zero-initialized (NULL curfile, unset timer).
+	 */
+	if (!quiet && !no_output) {
 		pmt_update(&pmt_timer);
 		uloop_timeout_cancel(&pmt_timer);
 		fprintf(stderr, "\n");
