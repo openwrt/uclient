@@ -214,7 +214,10 @@ static void header_done_cb(struct uclient *cl)
 	if (cl->status_code == 204 && cur_resume) {
 		/* Resume attempt failed, try normal download */
 		cur_resume = false;
-		init_request(cl);
+		if (init_request(cl)) {
+			error_ret = 4;
+			request_done(cl);
+		}
 		return;
 	}
 
