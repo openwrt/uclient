@@ -1040,6 +1040,7 @@ static struct uclient *uclient_http_alloc(void)
 	if (!uh)
 		return NULL;
 
+	uh->fd = -1;
 	uh->disconnect_t.cb = uclient_http_disconnect_cb;
 	blob_buf_init(&uh->headers, 0);
 
