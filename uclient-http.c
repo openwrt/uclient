@@ -567,7 +567,7 @@ uclient_http_add_auth_digest(struct uclient_http *uh)
 		goto fail;
 	}
 
-	sprintf(nc_str, "%08x", uh->nc++);
+	sprintf(nc_str, "%08x", ++uh->nc);
 	err = get_cnonce(cnonce_str);
 	if (err)
 		goto fail;
