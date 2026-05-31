@@ -148,6 +148,8 @@ uc_uclient_ssl_init(uc_vm_t *vm, size_t nargs)
 
 err:
 	ops->context_free(ctx);
+	ucl->ssl_ctx = NULL;
+	ucl->ssl_ops = NULL;
 	return NULL;
 }
 
