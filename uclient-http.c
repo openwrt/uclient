@@ -463,7 +463,8 @@ static void add_field(char **buf, int *ofs, int *len, const char *name, const ch
 	if (*len && !*buf)
 		return;
 
-	required = strlen(name) + 4 + strlen(val) * 2;
+	/* ", name=\"" + escaped value (up to 2 bytes each) + closing '"' + NUL */
+	required = strlen(name) + 6 + strlen(val) * 2;
 	if (required > available)
 		*len += required - available + 64;
 
