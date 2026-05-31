@@ -113,6 +113,14 @@ static int open_output_file(const char *path, uint64_t resume_offset)
 	int flags;
 	int ret;
 
+	/*
+	 * When all URLs are written to a single -O file, keep appending to the
+	 * descriptor opened for the first URL instead of truncating it again
+	 * for every subsequent URL.
+	 */
+	if (output_file && strcmp(output_file, "-") && output_fd >= 0)
+		return output_fd;
+
 	if (cur_resume)
 		flags = O_RDWR;
 	else
@@ -424,8 +432,12 @@ static void request_done(struct uclient *cl)
 	const char *proxy_url;
 
 	if (n_urls) {
-		/* close the finished file before starting the next URL */
-		if (output_fd >= 0 && output_fd != STDOUT_FILENO) {
+		/*
+		 * Close the finished per-URL file before starting the next URL.
+		 * A single -O file (and stdout) is kept open so the URLs are
+		 * concatenated into it.
+		 */
+		if (output_fd >= 0 && output_fd != STDOUT_FILENO && !opt_output_file) {
 			close(output_fd);
 			output_fd = -1;
 		}
