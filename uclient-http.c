@@ -1298,6 +1298,10 @@ int uclient_http_redirect(struct uclient *cl)
 	if (!url)
 		return false;
 
+	/* RFC 9110 §15.4.4: a 303 response is retrieved with GET (a HEAD stays HEAD) */
+	if (cl->status_code == 303 && uh->req_type != REQ_HEAD)
+		uh->req_type = REQ_GET;
+
 	if (cl->proxy_url) {
 		free(cl->proxy_url);
 		cl->proxy_url = url;

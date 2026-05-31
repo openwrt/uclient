@@ -138,7 +138,9 @@ static inline bool uclient_http_status_redirect(struct uclient *cl)
 	switch (cl->status_code) {
 	case 301:
 	case 302:
+	case 303:
 	case 307:
+	case 308:
 		return true;
 	default:
 		return false;
