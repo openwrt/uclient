@@ -43,6 +43,8 @@ char *uclient_get_addr(char *dest, int *port, union uclient_addr *a)
 		portval = a->sin6.sin6_port;
 		break;
 	default:
+		if (port)
+			*port = 0;
 		return strcpy(dest, "Unknown");
 	}
 
