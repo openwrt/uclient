@@ -427,7 +427,7 @@ uc_uclient_read(uc_vm_t *vm, size_t nargs)
 		len = sizeof(buf);
 
 	while (len > 0) {
-		cur = uclient_read(cl, buf, len);
+		cur = uclient_read(cl, buf, len > sizeof(buf) ? sizeof(buf) : len);
 		if (cur <= 0)
 			break;
 
