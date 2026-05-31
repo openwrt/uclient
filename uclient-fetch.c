@@ -869,7 +869,7 @@ int main(int argc, char **argv)
 	argv += optind;
 	argc -= optind;
 
-	if (debug_level)
+	if (debug_level && ssl_ctx)
 		ssl_ops->context_set_debug(ssl_ctx, debug_level, debug_cb, NULL);
 
 	if (verify && !has_cert)
