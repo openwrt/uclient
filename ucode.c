@@ -220,7 +220,7 @@ uc_uclient_get_headers(uc_vm_t *vm, size_t nargs)
 			continue;
 
 		str = ucv_string_new(blobmsg_get_string(cur));
-		ucv_object_add(ret, blobmsg_name(cur), ucv_get(str));
+		ucv_object_add(ret, blobmsg_name(cur), str);
 	}
 
 	return ret;
@@ -409,12 +409,12 @@ uc_uclient_status(uc_vm_t *vm, size_t nargs)
 	ucv_object_add(ret, "redirect", ucv_boolean_new(uclient_http_status_redirect(cl)));
 
 	uclient_get_addr(addr, &port, &cl->local_addr);
-	ucv_object_add(ret, "local_addr", ucv_get(ucv_string_new(addr)));
-	ucv_object_add(ret, "local_port", ucv_get(ucv_int64_new(port)));
+	ucv_object_add(ret, "local_addr", ucv_string_new(addr));
+	ucv_object_add(ret, "local_port", ucv_int64_new(port));
 
 	uclient_get_addr(addr, &port, &cl->remote_addr);
-	ucv_object_add(ret, "remote_addr", ucv_get(ucv_string_new(addr)));
-	ucv_object_add(ret, "remote_port", ucv_get(ucv_int64_new(port)));
+	ucv_object_add(ret, "remote_addr", ucv_string_new(addr));
+	ucv_object_add(ret, "remote_port", ucv_int64_new(port));
 
 	return ret;
 }
