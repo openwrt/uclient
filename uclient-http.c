@@ -350,10 +350,20 @@ static bool uclient_request_supports_body(enum request_type req_type)
 	}
 }
 
+/*
+ * The URL that is actually put on the wire: when a proxy is configured the
+ * request line and Host header use the proxy target (uc.proxy_url), so the
+ * credentials and the digest URI must be taken from the same URL.
+ */
+static struct uclient_url *uclient_http_request_url(struct uclient_http *uh)
+{
+	return uh->uc.proxy_url ? uh->uc.proxy_url : uh->uc.url;
+}
+
 static int
 uclient_http_add_auth_basic(struct uclient_http *uh)
 {
-	struct uclient_url *url = uh->uc.url;
+	struct uclient_url *url = uclient_http_request_url(uh);
 	int auth_len = strlen(url->auth);
 	char *auth_buf;
 
@@ -492,7 +502,7 @@ static void add_field(char **buf, int *ofs, int *len, const char *name, const ch
 static int
 uclient_http_add_auth_digest(struct uclient_http *uh)
 {
-	struct uclient_url *url = uh->uc.url;
+	struct uclient_url *url = uclient_http_request_url(uh);
 	const char *realm = NULL, *opaque = NULL;
 	const char *user, *password;
 	char *buf, *next;
@@ -631,7 +641,7 @@ fail:
 static int
 uclient_http_add_auth_header(struct uclient_http *uh)
 {
-	if (!uh->uc.url->auth)
+	if (!uclient_http_request_url(uh)->auth)
 		return 0;
 
 	switch (uh->auth_type) {
