@@ -258,11 +258,11 @@ static void header_done_cb(struct uclient *cl)
 		/* fall through */
 	case 204:
 	case 200:
-		if (no_output)
-			break;
-
 		if (tb[H_LEN])
 			out_len = strtoull(blobmsg_get_string(tb[H_LEN]), NULL, 10);
+
+		if (no_output)
+			break;
 
 		output_fd = open_output_file(cl->url->location, resume_offset);
 		if (output_fd < 0) {
@@ -486,7 +486,12 @@ static void eof_cb(struct uclient *cl)
 			fprintf(stderr, "Connection reset prematurely\n");
 		error_ret = 4;
 	} else if (!quiet) {
-		fprintf(stderr, "Download completed (%"PRIu64" bytes)\n", (uint64_t) out_bytes);
+		if (no_output) {
+			if (out_len > 0)
+				fprintf(stderr, "Content length: %"PRIu64" bytes\n", (uint64_t) out_len);
+		} else {
+			fprintf(stderr, "Download completed (%"PRIu64" bytes)\n", (uint64_t) out_bytes);
+		}
 	}
 	request_done(cl);
 }
