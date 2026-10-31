@@ -16,6 +16,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <unistd.h>
@@ -155,6 +157,9 @@ static int uclient_do_connect(struct uclient_http *uh, const char *port)
 		return -1;
 
 	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+	/* a request goes out in several small writes; with Nagle each one
+	 * after the first would wait for the server's delayed ACK */
+	setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &(int){ 1 }, sizeof(int));
 	uh->fd = fd;
 
 	sl = sizeof(uh->uc.local_addr);
