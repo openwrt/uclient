@@ -121,6 +121,8 @@ struct uclient_http {
 
 	struct blob_buf headers;
 	struct blob_buf meta;
+	char *header_buf;
+	size_t header_len;
 };
 
 enum {
@@ -254,6 +256,7 @@ static void uclient_http_reset_state(struct uclient_http *uh)
 	uh->disconnect = false;
 	uh->connection_close = false;
 	uh->state = HTTP_STATE_INIT;
+	uh->header_len = 0;
 
 	if (uh->auth_type == AUTH_TYPE_UNKNOWN && !uh->uc.url->auth)
 		uh->auth_type = AUTH_TYPE_NONE;
@@ -818,6 +821,57 @@ error:
 	uclient_notify_eof(uh);
 }
 
+static char *uclient_http_read_header_line(struct uclient_http *uh)
+{
+	char *data, *sep, *buf;
+	int len;
+	size_t end;
+
+	while ((data = ustream_get_read_buf(uh->us, &len)) && len) {
+		if (uh->header_len && uh->header_buf[uh->header_len - 1] == '\n') {
+			end = uh->header_len - 1;
+			if (end && uh->header_buf[end - 1] == '\r')
+				end--;
+
+			/* A following whitespace character continues the previous header. */
+			if (isspace((unsigned char)*data) && *data != '\r' && *data != '\n') {
+				memset(uh->header_buf + end, ' ', uh->header_len - end);
+			} else {
+				uh->header_buf[end] = 0;
+				uh->header_len = 0;
+				return uh->header_buf;
+			}
+		}
+
+		sep = memchr(data, '\n', len);
+		if (sep)
+			len = sep + 1 - data;
+
+		/* Consume fragments so a long line cannot fill and block the stream. */
+		buf = realloc(uh->header_buf, uh->header_len + len + 1);
+		if (!buf) {
+			uclient_http_error(uh, UCLIENT_ERROR_UNKNOWN);
+			return NULL;
+		}
+
+		uh->header_buf = buf;
+		memcpy(buf + uh->header_len, data, len);
+		uh->header_len += len;
+		buf[uh->header_len] = 0;
+		ustream_consume(uh->us, len);
+
+		/* The empty line ends the headers without looking into the body. */
+		if (sep && (uh->header_len == 1 ||
+			    (uh->header_len == 2 && buf[0] == '\r'))) {
+			buf[0] = 0;
+			uh->header_len = 0;
+			return buf;
+		}
+	}
+
+	return NULL;
+}
+
 static void __uclient_notify_read(struct uclient_http *uh)
 {
 	struct uclient *uc = &uh->uc;
@@ -831,56 +885,20 @@ static void __uclient_notify_read(struct uclient_http *uh)
 	if (uh->state == HTTP_STATE_PROCESS_HEADERS)
 		return;
 
-	data = ustream_get_read_buf(uh->us, &len);
-	if (!data || !len)
-		return;
-
 	if (uh->state < HTTP_STATE_RECV_DATA) {
-		char *sep, *next;
-		int cur_len;
-
 		do {
-			sep = strchr(data, '\n');
-			if (!sep)
-				break;
+			data = uclient_http_read_header_line(uh);
+			if (!data)
+				return;
 
-			next = sep + 1;
-			if (sep > data && sep[-1] == '\r')
-				sep--;
-
-			/* Check for multi-line HTTP headers */
-			if (sep > data) {
-				if (!*next)
-					return;
-
-				if (isspace((unsigned char)*next) && *next != '\r' && *next != '\n') {
-					sep[0] = ' ';
-					if (sep + 1 < next)
-						sep[1] = ' ';
-					continue;
-				}
-			}
-
-			*sep = 0;
-			cur_len = next - data;
 			uclient_parse_http_line(uh, data);
-			if (seq != uh->seq)
+			if (seq != uh->seq || uh->eof)
 				return;
-
-			ustream_consume(uh->us, cur_len);
-			len -= cur_len;
-
-			if (uh->eof)
-				return;
-
-			data = ustream_get_read_buf(uh->us, &len);
-		} while (data && uh->state == HTTP_STATE_RECV_HEADERS);
-
-		if (!len)
-			return;
+		} while (uh->state == HTTP_STATE_RECV_HEADERS);
 	}
 
-	if (uh->eof)
+	data = ustream_get_read_buf(uh->us, &len);
+	if (!data || !len || uh->eof)
 		return;
 
 	if (uh->state == HTTP_STATE_RECV_DATA) {
@@ -1092,6 +1110,7 @@ static void uclient_http_free(struct uclient *cl)
 	uclient_http_free_ssl_ctx(uh);
 	blob_buf_free(&uh->headers);
 	blob_buf_free(&uh->meta);
+	free(uh->header_buf);
 	free(uh);
 }
 
