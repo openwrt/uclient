@@ -1233,7 +1233,7 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 		errno = 0;
 		chunk_len = strtoll(data, &end, 16);
 		if (end == data || chunk_len < 0 || chunk_len > LONG_MAX || errno) {
-			uclient_http_error(uh, UCLIENT_ERROR_UNKNOWN);
+			uclient_http_error(uh, UCLIENT_ERROR_INVALID_RESPONSE);
 			return 0;
 		}
 		uh->read_chunked = chunk_len;
