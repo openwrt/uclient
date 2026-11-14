@@ -859,7 +859,7 @@ static void __uclient_notify_read(struct uclient_http *uh)
 			/* Check for multi-line HTTP headers */
 			if (sep > data) {
 				if (!*next)
-					return;
+					break;
 
 				if (isspace((unsigned char)*next) && *next != '\r' && *next != '\n') {
 					sep[0] = ' ';
@@ -883,6 +883,12 @@ static void __uclient_notify_read(struct uclient_http *uh)
 
 			data = ustream_get_read_buf(uh->us, &len);
 		} while (data && uh->state == HTTP_STATE_RECV_HEADERS);
+
+		/* a header line that fills the read buffer can never be completed */
+		if (uh->state == HTTP_STATE_RECV_HEADERS && len >= uh->us->r.buffer_len) {
+			uclient_http_error(uh, UCLIENT_ERROR_INVALID_RESPONSE);
+			return;
+		}
 
 		if (!len)
 			return;
