@@ -34,6 +34,14 @@
 #include "uclient-utils.h"
 #include "uclient-backend.h"
 
+/*
+ * A response header line is parsed once it is complete in the read buffer,
+ * so the buffer limits the length of a header line. The ustream default of
+ * 4 KiB is too small: github.com sends a Content-Security-Policy longer than
+ * that.
+ */
+#define HTTP_READ_BUF_LEN	(32 * 1024)
+
 enum auth_type {
 	AUTH_TYPE_UNKNOWN,
 	AUTH_TYPE_NONE,
@@ -933,6 +941,7 @@ static int uclient_setup_http(struct uclient_http *uh)
 	uh->ssl = false;
 
 	us->string_data = true;
+	us->r.buffer_len = HTTP_READ_BUF_LEN;
 	us->notify_state = uclient_notify_state;
 	us->notify_read = uclient_notify_read;
 	us->notify_write = uclient_notify_write;
@@ -1019,6 +1028,7 @@ static int uclient_setup_https(struct uclient_http *uh)
 		return UCLIENT_ERROR_CONNECT;
 
 	us->string_data = true;
+	us->r.buffer_len = HTTP_READ_BUF_LEN;
 	us->notify_state = uclient_ssl_notify_state;
 	us->notify_read = uclient_ssl_notify_read;
 	us->notify_write = uclient_ssl_notify_write;
