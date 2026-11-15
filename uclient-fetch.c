@@ -532,6 +532,10 @@ static void handle_uclient_error(struct uclient *cl, int code)
 		ignore = !verify;
 		error_ret = 5;
 		break;
+	case UCLIENT_ERROR_INVALID_RESPONSE:
+		type = "Invalid response";
+		error_ret = 7;
+		break;
 	default:
 		error_ret = 1;
 		break;

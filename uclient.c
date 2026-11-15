@@ -498,6 +498,8 @@ const char * uclient_strerror(unsigned err)
 		return "ssl cn mismatch";
 	case UCLIENT_ERROR_MISSING_SSL_CONTEXT:
 		return "missing ssl context";
+	case UCLIENT_ERROR_INVALID_RESPONSE:
+		return "invalid response";
 	default:
 		return "invalid error code";
 	}

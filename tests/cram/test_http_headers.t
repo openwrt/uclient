@@ -7,3 +7,7 @@ header or a redirect followed by a response body:
   /folded: OK
   /redirect: OK
   /lf: OK
+  /limit: OK
+  /oversized: OK
+  /folded-oversized: OK
+  /invalid-chunk: OK

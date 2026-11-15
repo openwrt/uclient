@@ -17,12 +17,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 b'HTTP/1.1 200 OK\nContent-Security-Policy: ' + b'x' * 4175 +
                 b'\nContent-Length: 3\n\nOK\n')
             return
+        if self.path == '/invalid-chunk':
+            self.connection.sendall(
+                b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\ninvalid\r\n')
+            return
         redirect = self.path == '/redirect'
         self.send_response(302 if redirect else 200)
         if not self.path.startswith('/body'):
             length = 4096 if self.path == '/boundary' else 4175
+            if self.path in ('/limit', '/oversized', '/folded-oversized'):
+                length = 65536 + (self.path == '/oversized')
             value = 'x' * (length - len('Content-Security-Policy: \r\n'))
-            if self.path == '/folded':
+            if self.path in ('/folded', '/folded-oversized'):
                 value += '\r\n ' + 'y' * 4175
             self.send_header('Content-Security-Policy', value)
         if redirect:
@@ -41,12 +47,15 @@ with http.server.ThreadingHTTPServer(('127.0.0.1', 0), Handler) as server:
     thread.start()
     binary = sys.argv[1:] or [os.path.join(os.environ['BUILD_BIN_DIR'], 'uclient-fetch')]
     try:
-        for path in ('/boundary', '/long', '/folded', '/redirect', '/lf'):
+        for path in ('/boundary', '/long', '/folded', '/redirect', '/lf', '/limit',
+                     '/oversized', '/folded-oversized', '/invalid-chunk'):
             result = subprocess.run(
                 binary + ['-q', '-T', '2', '-O', '-',
                  f'http://127.0.0.1:{server.server_port}{path}'],
                 capture_output=True, timeout=5)
-            if result.returncode != 0 or result.stdout != b'OK\n':
+            failed = path in ('/oversized', '/folded-oversized', '/invalid-chunk')
+            expected_code, expected_body = (7, b'') if failed else (0, b'OK\n')
+            if result.returncode != expected_code or result.stdout != expected_body:
                 raise SystemExit(f'{path}: exit {result.returncode}, '
                                  f'body {result.stdout!r}, error {result.stderr!r}')
             print(f'{path}: OK')

@@ -34,6 +34,9 @@
 #include "uclient-utils.h"
 #include "uclient-backend.h"
 
+/* Use Python http.client's 64 KiB limit for each logical header line. */
+#define HTTP_MAX_HEADER_LINE (64 * 1024)
+
 enum auth_type {
 	AUTH_TYPE_UNKNOWN,
 	AUTH_TYPE_NONE,
@@ -847,10 +850,15 @@ static char *uclient_http_read_header_line(struct uclient_http *uh)
 		if (sep)
 			len = sep + 1 - data;
 
+		if ((size_t)len > HTTP_MAX_HEADER_LINE - uh->header_len) {
+			uclient_http_error(uh, UCLIENT_ERROR_INVALID_RESPONSE);
+			return NULL;
+		}
+
 		/* Consume fragments so a long line cannot fill and block the stream. */
 		buf = realloc(uh->header_buf, uh->header_len + len + 1);
 		if (!buf) {
-			uclient_http_error(uh, UCLIENT_ERROR_UNKNOWN);
+			uclient_http_error(uh, UCLIENT_ERROR_INVALID_RESPONSE);
 			return NULL;
 		}
 
@@ -1242,7 +1250,7 @@ uclient_http_read(struct uclient *cl, char *buf, unsigned int len)
 		errno = 0;
 		chunk_len = strtoll(data, &end, 16);
 		if (end == data || chunk_len < 0 || chunk_len > LONG_MAX || errno) {
-			uclient_http_error(uh, UCLIENT_ERROR_UNKNOWN);
+			uclient_http_error(uh, UCLIENT_ERROR_INVALID_RESPONSE);
 			return 0;
 		}
 		uh->read_chunked = chunk_len;
